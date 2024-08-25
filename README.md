@@ -148,6 +148,28 @@ Any sensors that you do not need can be manually disabled using the HASS GUI.
 
 ![controller_detail](documentation/integration_xt1.png)
 
+# Re-configuration
+In case you want to add or remove Studer params or infos into the integration, this can be done via a Reconfigure.
+This can also be used to discover new Studer devices added to the installation.
+
+To reconfigure:
+- Go to Home Assistant's Integration Dashboard
+- Click to open the 'Studer-Innotec' integration
+- Click on the hamburger icon to open the menu and select 'Reconfigure'
+- The same steps as for 'Configuration' will appear
+
+![controller_detail](documentation/integration_reconfigure.png)
+
+# Options configuration
+A limited set of parameters can be set via the 'Options' page.
+
+To reconfigure:
+- Go to Home Assistant's Integration Dashboard
+- Click to open the 'Studer-Innotec' integration
+- Click on 'Configure'
+
+![controller_detail](documentation/integration_options.png)
+
 # Troubleshooting
 Please set your logging for the this custom component to debug during initial setup phase. If everything works well, you are safe to remove the debug logging.
 
