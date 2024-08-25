@@ -14,16 +14,19 @@ The custom component was tested with:
 - Xtender XTH 8000-48 (but should also work for other XTH, XTS and XTM)
 - Xcom-CAN (BSP connection to a third party BMS)
 - Xcom-LAN (which actually is a Xcom232i with a Moxy NPort 5110A)
+- RCC-03
 
 It should also be able to detect and handle
 - Studer BMS
 - VarioTrack
 - VarioString
-- RCC
+- RCC-02
 
 This custom component provides a more reliable alternative to polling data from the Studer Portal via http as described in [Read Studer Parameters via Xcom-LAN and Rest Sensor](https://community.home-assistant.io/t/read-studer-parameters-via-xcom-lan-and-rest-sensor/597933).
 
+
 # Prerequisites
+
 This device depends on having a Studer Xcom-LAN (i.e. an Xcom-232i and a Moxa ethernet gateway) acting as a Xcom client and connecting to this integration. For older systems this will be a separate component, for future systems Studer have indicated that LAN connection will become part of the Xtender range.
 
 The Studer Xcom-LAN will be able to simultaneously send data to the Studer online portal as well as sending data to this integration.
@@ -31,7 +34,7 @@ The Studer Xcom-LAN will be able to simultaneously send data to the Studer onlin
 Configuration steps:
 
 1. Download and install the Moxa DSU tool (Device Search Utility)
-    - Open www.moxa.com in a browser
+    - Open [www.moxa.com](https://www.moxa.com) in a browser
     - Select Support -> Software and Documentation
     - Choose NPort 5100A series (or whatever specific device you have)
     - Scroll down under 'Related Software, Firmware and Drivers' to find 'Device Search Utility'
@@ -58,6 +61,7 @@ Configuration steps:
 # Installation
 
 ## HACS
+
 This custom integration is waiting to be included into the HACS default integrations.
 Until that time, you can add it as a HACS custom repository:
 1. In the HACS page, press the three dots at the top right corner.
@@ -69,6 +73,7 @@ Until that time, you can add it as a HACS custom repository:
 
 
 ## Manual install
+
 1. Under the `<config directory>/custom_components/` directory create a directory called `studer_xcom`. 
 Copying all files in `/custom_components/studer_xcom/` folder from this repo into the new `<config directory>/custom_components/studer_xcom/` directory you just created.
 
@@ -103,41 +108,56 @@ Copying all files in `/custom_components/studer_xcom/` folder from this repo int
 2. Restart Home Assistant.
 3. Follow the UI based [Configuration](#configuration)
 
+
 # Configuration
+
 To start the setup of this custom integration:
 - go to Home Assistant's Integration Dashboard
-- Add Integration
+- Press 'Add Integration'
 - Search for 'Studer-Innotec'
-- Follow the prompts in the configuration step
+- Follow the prompts in the configuration steps
 
 ## Step 1 - Client details
+
 The following properties are required to connect to Xcom client on the local network
 - Port: specify the port as set in the Moxa NPort confuguration. Default 4001
   
 ![setup_step_1](documentation/setup_client.png)
 
 ## Step 2 - Xcom discovery
+
 The integration will wait until the Xcom client connects to it. Next, it will try to detect any connected Studer devices.
 This is a fully automatic step, no user input needed.
 
 ![setup_step_2](documentation/setup_discovery.png)
 
 ## Step 3 - Params and infos numbers
+
 Choose the params and info numbers you want for each detected device.
 
-A full list of available numbers can be downloaded from Studer-Innotec:
-- Open studer.innotec.com in a browser
+A full list of available numbers can be found in the files of this integration: 
+- custom_components/studer_xcom/xcom_datapoints.json
+
+Or it can be downloaded from Studer-Innotec:
+- Open [www.studer-innotec.com](https://www.studer-innotec.com) in a browser
 - Go to Downloads -> Openstuder -> communication protocol xcom 232i
 - In the downloaded zip open file 'Technical specification - Xtender serial protocol appendix - 1.6.38.pdf'
+
+Restrict yourself to only those parameters you actually use and try to keep the time needed for fetching Studer Xcom data below 20 seconds. While in debug mode (see below), keep an eye on the log (Settings -> System -> Log -> Load Full Logs ),
+and search for a like looking like:
+
+`2024-08-26 09:57:46.383 DEBUG (MainThread) [custom_components.studer_xcom.coordinator] Finished fetching Studer Xcom data in 1.450 seconds (success: True)`
   
 ![setup_step_3](documentation/setup_numbers.png)
 
 ## Step 4 - Finish
+
 Press submit to create all entities (sensors, switches, numbers, etc) for the configured params and infos numbers
   
 ![setup_step_4](documentation/setup_finish.png)
 
 ## Step 5 - Success
+
 After succcessful setup, all devices from the Studer installation should show up.
 
 ![setup_step_5](documentation/setup_success.png)
@@ -148,7 +168,9 @@ Any sensors that you do not need can be manually disabled using the HASS GUI.
 
 ![controller_detail](documentation/integration_xt1.png)
 
+
 # Re-configuration
+
 In case you want to add or remove Studer params or infos into the integration, this can be done via a Reconfigure.
 This can also be used to discover new Studer devices added to the installation.
 
@@ -160,7 +182,9 @@ To reconfigure:
 
 ![controller_detail](documentation/integration_reconfigure.png)
 
+
 # Options configuration
+
 A limited set of parameters can be set via the 'Options' page.
 
 To reconfigure:
@@ -170,7 +194,22 @@ To reconfigure:
 
 ![controller_detail](documentation/integration_options.png)
 
+
+# Entity writes to device
+
+When the value of a Studer param is changed via this integration (via a Number, Select or Switch entity), these are written via Xcom to the affected device. 
+Changes are stored in the device's RAM memory, not in its flash memory as you can only write to flash a limited number of time over its lifetime.
+
+However, reading back the value from the entity will be from flash (querying RAM gives unreliable responses). As a result, the change to the entity value is not visible. You can only tell from the behavior of the PV system that the Studer param was indeed changed. After a restart/reboot of the PV system the system will revert to the value from Flash. So you may want to periodically repeat the write of changed param values via an automation.
+
+**IMPORTANT**:
+
+I will not take responsibility for damage to your PV system resulting from you choosing to change Studer params you are not supposed to change. Or setting a combination of param values that cause an invalid status.  
+Be very carefull in changing params marked as having level Expert, Installer or even Qualified Service Person. If you do not know what the effect of a Studer param change is, then do not change it.
+
+
 # Troubleshooting
+
 Please set your logging for the this custom component to debug during initial setup phase. If everything works well, you are safe to remove the debug logging.
 
 ```yaml
