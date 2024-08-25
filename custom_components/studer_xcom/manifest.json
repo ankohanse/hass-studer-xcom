@@ -1,0 +1,13 @@
+{
+    "domain": "studer_xcom",
+    "name": "Studer-Innotec",
+    "codeowners": ["@ankohanse"],
+    "config_flow": true,
+    "dependencies": [],
+    "documentation": "https://github.com/ankohanse/hass-studer-xcom",
+    "integration_type": "hub",
+    "iot_class": "local_polling",
+    "loggers": ["custom_components.studer_xcom"],
+    "requirements": [],
+    "version": "2024.08.1"
+  }

@@ -1,0 +1,101 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "client": {
+        "description": "Please specify the Xcom client connection details:",
+        "data": {
+          "port": "Port"
+        }
+      },
+      "progress": {
+        "description": "Xcom discovery - {percent}%"
+      },
+      "numbers": {
+        "description": "Choose params and infos numbers per device:",
+        "data": {
+          "user_level": "User level",
+          "XT1": "Xtender XT1",
+          "XT2": "Xtender XT2",
+          "XT3": "Xtender XT3",
+          "XT4": "Xtender XT4",
+          "XT5": "Xtender XT5",
+          "XT6": "Xtender XT6",
+          "XT7": "Xtender XT7",
+          "XT8": "Xtender XT8",
+          "XT9": "Xtender XT9",
+          "L1": "Phase L1",
+          "l1": "Phase L1",
+          "L2": "Phase L2",
+          "L3": "Phase L3",
+          "RCC": "RCC or Xcom-LAN",
+          "BSP": "BSP",
+          "BMS": "BMS",
+          "VT1": "VarioTrack VT1",
+          "VT2": "VarioTrack VT2",
+          "VT3": "VarioTrack VT3",
+          "VT4": "VarioTrack VT4",
+          "VT5": "VarioTrack VT5",
+          "VT6": "VarioTrack VT6",
+          "VT7": "VarioTrack VT7",
+          "VT8": "VarioTrack VT8",
+          "VT9": "VarioTrack VT9",
+          "VT10": "VarioTrack VT10",
+          "VT11": "VarioTrack VT11",
+          "VT12": "VarioTrack VT12",
+          "VT13": "VarioTrack VT13",
+          "VT14": "VarioTrack VT14",
+          "VT15": "VarioTrack VT15",
+          "VS1": "VarioString VS1",
+          "VS2": "VarioString VS2",
+          "VS3": "VarioString VS3",
+          "VS4": "VarioString VS4",
+          "VS5": "VarioString VS5",
+          "VS6": "VarioString VS6",
+          "VS7": "VarioString VS7",
+          "VS8": "VarioString VS8",
+          "VS9": "VarioString VS9",
+          "VS10": "VarioString VS10",
+          "VS11": "VarioString VS11",
+          "VS12": "VarioString VS12",
+          "VS13": "VarioString VS13",
+          "VS14": "VarioString VS14",
+          "VS15": "VarioString VS15"
+        }
+      },
+      "finish": {
+        "description": "Finished configuration.\nPress the submit button to create the integration's entities and devices."
+      }
+    },
+    "progress": {
+      "description": "Xcom discovery - {percent}%",
+      "xcom_connect": "Connect to Xcom client",
+      "xcom_devices": "Searching Studer devices",
+      "xcom_disconnect": "Disconnect from Xcom client"
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error",
+      "no_devices_found": "No devices found"
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "General Options",
+        "data": {
+          "polling_interval": "Polling interval"
+        },
+        "data_description": {
+        }
+      }
+    },
+    "error": {
+    }
+  }
+}
