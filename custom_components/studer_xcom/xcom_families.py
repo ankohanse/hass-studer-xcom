@@ -57,7 +57,7 @@ class XcomDeviceFamilies:
         1000, 1999,            # nr for params, start to end
         3000, 3999,            # nr for infos,  start to end 
         3000,                  # nr for discovery
-        [1107,3000,3007,3010,3028,3031,3032,3049,3078,3081,3083,3136,3137], # nr defaults setup during discovery
+        [3020,3028,3031,3032,3049,3078,3081,3083,3101,3104,3119], # nr defaults setup during discovery
     )
     L1 = XcomDeviceFamily(
         "l1", "xt",
@@ -107,7 +107,7 @@ class XcomDeviceFamilies:
         6000, 6999,            # nr for params, start to end
         7000, 7999,            # nr for infos,  start to end
         7036,                  # nr for discovery
-        [7000,7001,7002,7003,7029], # nr defaults setup during discovery
+        [7007,7008,7030,7031,7032,7033], # nr defaults setup during discovery
     )
     BMS = XcomDeviceFamily(
         "bms", "bms",
@@ -117,7 +117,7 @@ class XcomDeviceFamilies:
         6000, 6999,            # nr for params, start to end
         7000, 7999,            # nr for infos,  start to end
         7054,                  # nr for discovery
-        [7000,7001,7002,7003,7029], # nr defaults setup during discovery
+        [7007,7008,7030,7031,7032,7033], # nr defaults setup during discovery
     )
     VARIOTRACK = XcomDeviceFamily(
         "vt", "vt",
@@ -127,7 +127,7 @@ class XcomDeviceFamilies:
         10000, 10999,          # nr for params, start to end
         11000, 11999,          # nr for infos,  start to end
         11000,                 # nr for discovery
-        [11000,11001,11002,11003,11004,11007,11038,11069], # nr defaults setup during discovery
+        [11007,11025,11038,11039,11040,11041,11042,11045,11069], # nr defaults setup during discovery
     )
     VARIOSTRING = XcomDeviceFamily(
         "vs", "vs",
@@ -137,7 +137,7 @@ class XcomDeviceFamilies:
         14000, 14999,          # nr for params, start to end
         15000, 15999,          # nr for infos,  start to end
         15000,                 # nr for discovery
-        [15000,15001,15002,15004,15007,15010,15017,15108], # nr defaults setup during discovery
+        [15017,15030,15054,15057,15064,15065,15108], # nr defaults setup during discovery
     )
 
     @staticmethod

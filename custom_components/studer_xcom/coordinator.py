@@ -306,7 +306,6 @@ class StuderCoordinator(DataUpdateCoordinator):
             #await self._async_update_cache(f"entities", self._entity_map)
 
             # return updated data
-            _LOGGER.debug(f"entity_map: {len(self._entity_map)} entities")
             return self._get_data()
         
         except asyncio.TimeoutError as err:
@@ -325,6 +324,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 value = await self._api.requestValue(param, addr)
                 if value is not None:
                     self._entity_map[key].value = value
+                    self._entity_map_ts = datetime.now
             
             except Exception as e:
                 _LOGGER.warning(f"Exception while requesting values from Xcom client: {e}")
@@ -410,7 +410,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         return {
             "data": {
                 "install_id": self._install_id,
-                "entity_map_ts": self._entity_map_ts,
+                "entity_map_ts": str(self._entity_map_ts),
                 "entity_map": entity_map,
             },
         },

@@ -37,7 +37,7 @@ HELPER = "Helper"
 # configuration items and their defaults
 DEFAULT_PORT = 4001
 DEFAULT_USER_LEVEL = "BASIC"
-DEFAULT_POLLING_INTERVAL = 20
+DEFAULT_POLLING_INTERVAL = 30
 
 CONF_USER_LEVEL = "user_level"
 CONF_OPTIONS = "options"
