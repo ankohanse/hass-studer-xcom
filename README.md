@@ -120,6 +120,7 @@ To start the setup of this custom integration:
 ## Step 1 - Client details
 
 The following properties are required to connect to Xcom client on the local network
+- AC voltage: choose between 120 Vac or 240 Vac; used to select the correct Xcom params min and max values
 - Port: specify the port as set in the Moxa NPort confuguration. Default 4001
   
 ![setup_step_1](documentation/setup_client.png)
