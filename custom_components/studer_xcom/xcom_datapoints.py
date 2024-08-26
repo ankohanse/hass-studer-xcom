@@ -95,24 +95,43 @@ class XcomDatapoint:
 class XcomDatasetFactory:
 
     @staticmethod
-    def create():
+    def create(voltage: str):
         """
         The actual XcomDataset list is kept in a separate json file to reduce the memory size needed to load the integration.
         The list is only loaded during config flow and during initial startup, and then released again.
         """
-        path = Path(__file__.replace('.py', '.json'))
-        text = path.read_text(encoding="UTF-8")
-        values = json_loads_array(text)
+        path_120vac = Path(__file__.replace('.py', '_120v.json'))   # Override values for 120 Vac
+        path_240vac = Path(__file__.replace('.py', '.json'))        # Base values for both 120 Vac and 240 Vac
 
-        # transform into list of XcomDatapoint objects
-        datapoints: list[XcomDatapoint] = []
-        for val in values:
-            datapoint = XcomDatapoint.from_dict(val)
-            if datapoint:
-                datapoints.append(datapoint)
+        text_120vac = path_120vac.read_text(encoding="UTF-8")
+        text_240vac = path_240vac.read_text(encoding="UTF-8")
+        values_120vac = json_loads_array(text_120vac)
+        values_240vac = json_loads_array(text_240vac)
 
+        datapoints_120vac = list(filter(None, [XcomDatapoint.from_dict(val) for val in values_120vac]))
+        datapoints_240vac = list(filter(None, [XcomDatapoint.from_dict(val) for val in values_240vac]))
+
+        # start with the 240v list as base
+        datapoints = datapoints_240vac
+
+        if voltage == "120 Vac":
+            # Merge the 120v list into the 240v one by replacing duplicates. This maintains the order of menu items
+            _LOGGER.info(f"Use datapoints for 120 Vac")
+
+            for dp120 in datapoints_120vac:
+                # already in result?
+                index = next( (idx for idx,dp240 in enumerate(datapoints) if dp120.nr == dp240.nr and dp120.family_id == dp240.family_id ), None)
+                if index is not None:
+                    datapoints[index] = dp120
+
+        elif voltage == "240 Vac":
+            _LOGGER.info(f"Use datapoints for 240 Vac")
+        else:
+            raise Exception(f"Unknown voltage: '{voltage}'")
+
+        _LOGGER.debug(f"datapoints: {len(datapoints)}")
         return XcomDataset(datapoints)
-    
+
 
 class XcomDataset:
 

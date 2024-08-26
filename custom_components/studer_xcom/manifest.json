@@ -9,5 +9,5 @@
     "iot_class": "local_polling",
     "loggers": ["custom_components.studer_xcom"],
     "requirements": [],
-    "version": "2024.08.1"
+    "version": "2024.08.2"
   }

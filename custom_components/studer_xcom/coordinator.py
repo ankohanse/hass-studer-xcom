@@ -59,8 +59,11 @@ from .const import (
     COORDINATOR,
     PREFIX_ID,
     PREFIX_NAME,
-    DEFAULT_POLLING_INTERVAL,
+    CONF_VOLTAGE,
     CONF_POLLING_INTERVAL,
+    DEFAULT_VOLTAGE,
+    DEFAULT_PORT,
+    DEFAULT_POLLING_INTERVAL,
 )
 
 
@@ -134,10 +137,8 @@ class StuderCoordinatorFactory:
     
         # Get properties from the config_entry
         port = config_entry.data[CONF_PORT]
-        devices_data = config_entry.data[CONF_DEVICES]
+        config = config_entry.data
         options = config_entry.options
-
-        devices = [StuderDeviceConfig.from_dict(d) for d in devices_data]
 
         if not COORDINATOR in hass.data[DOMAIN]:
             hass.data[DOMAIN][COORDINATOR] = {}
@@ -146,14 +147,14 @@ class StuderCoordinatorFactory:
         coordinator = hass.data[DOMAIN][COORDINATOR].get(port, None)
         if not coordinator:
             # Get an instance of our coordinator. This is unique to this port
-            coordinator = StuderCoordinator(hass, port, devices, options)
+            coordinator = StuderCoordinator(hass, config, options)
             hass.data[DOMAIN][COORDINATOR][port] = coordinator
             
         return coordinator
 
 
     @staticmethod
-    def create_temp(port):
+    def create_temp(voltage, port):
         """
         Get temporary Coordinator for a given port.
         This coordinator will only provide limited functionality
@@ -162,7 +163,11 @@ class StuderCoordinatorFactory:
     
         # Get properties from the config_entry
         hass = async_get_hass()
-        devices: list[StuderDeviceConfig] = []
+        config: dict[str,Any] = {
+            CONF_VOLTAGE: voltage,
+            CONF_PORT: port,
+            CONF_DEVICES: [],
+        }
         options: dict[str,Any] = {}
         
         # Already have a coordinator for this port?
@@ -172,7 +177,10 @@ class StuderCoordinatorFactory:
 
         if not coordinator:
             # Get a temporary instance of our coordinator. This is unique to this port
-            coordinator = StuderCoordinator(hass, port, devices, options, is_temp=True)
+            _LOGGER.debug(f"create temp coordinator, config: {config}, options: {options}")
+            coordinator = StuderCoordinator(hass, config, options, is_temp=True)
+        else:
+            _LOGGER.debug(f"reuse existing coordinator")
 
         return coordinator
     
@@ -180,7 +188,7 @@ class StuderCoordinatorFactory:
 class StuderCoordinator(DataUpdateCoordinator):
     """My custom coordinator."""
     
-    def __init__(self, hass, port: int, devices: list[StuderDeviceConfig], options: dict[str,Any], is_temp=False):
+    def __init__(self, hass, config: dict[str,Any], options: dict[str,Any], is_temp=False):
         """Initialize my coordinator."""
         super().__init__(
             hass,
@@ -193,19 +201,23 @@ class StuderCoordinator(DataUpdateCoordinator):
             always_update = True,
         )
 
-        self._api = XcomAPi(port)
-        self._port: int = port
-        self._devices: list[StuderDeviceConfig] = devices
+        self._voltage: str = config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
+        self._port: int = config.get(CONF_PORT, DEFAULT_PORT)
+        devices_data = config.get(CONF_DEVICES, [])
+
+        self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
         self._options: dict[str,Any] = options
 
-        self._install_id = StuderCoordinator.create_id(port)
+        self._api = XcomAPi(self._port)
+
+        self._install_id = StuderCoordinator.create_id(self._port)
         self._entity_map: dict[str,StuderEntity] = self._create_entity_map()
         self._entity_map_ts = datetime.now
         self.data = self._get_data()
 
         # Cached data in case communication to Studer Xcom fails
         self._hass = hass
-        self._store_key = port
+        self._store_key = self._port
         self._store = StuderCoordinatorStore(hass, self._store_key)
 
 
@@ -242,7 +254,7 @@ class StuderCoordinator(DataUpdateCoordinator):
     def _create_entity_map(self):
         entity_map: dict[str,StuderEntity] = {}
 
-        dataset = XcomDatasetFactory.create()
+        dataset = XcomDatasetFactory.create(self._voltage)
 
         for device in self._devices:
             family = XcomDeviceFamilies.getById(device.family_id)
@@ -250,10 +262,9 @@ class StuderCoordinator(DataUpdateCoordinator):
             for nr in device.numbers:
                 try:
                     param = dataset.getByNr(nr, family.idForNr)
-
                     entity = self._create_entity(param, family, device)
-                    if entity:
-                        entity_map[entity.object_id] = entity
+
+                    entity_map[entity.object_id] = entity
 
                 except Exception as e:
                     _LOGGER.debug(f"Exception in _create_entity_map: {e}")

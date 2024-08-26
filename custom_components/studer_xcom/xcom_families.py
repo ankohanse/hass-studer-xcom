@@ -93,7 +93,7 @@ class XcomDeviceFamilies:
         5000, 5999,            # nr for params, start to end
         0, 0,                  # nr for infos,  start to end
         5002,                  # nr for discovery
-        [5000], # nr defaults setup during discovery
+        [], # nr defaults setup during discovery
     )
     BSP = XcomDeviceFamily(
         "bsp", "bsp",

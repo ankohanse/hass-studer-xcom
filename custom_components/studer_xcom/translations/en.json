@@ -3,9 +3,12 @@
     "flow_title": "{name}",
     "step": {
       "client": {
-        "description": "Please specify the Xcom client connection details:",
         "data": {
+          "voltage": "AC voltage",
           "port": "Port"
+        },
+        "data_description": {
+          "port": "Please specify the Xcom client connection details:"
         }
       },
       "progress": {

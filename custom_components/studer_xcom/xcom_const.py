@@ -34,7 +34,7 @@ class LEVEL(IntEnum):
     INFO   = 0x0000
     BASIC  = 0x0010
     EXPERT = 0x0020
-    INST   = 0x0030
+    INST   = 0x0030 # Installer
     QSP    = 0x0040 # Qualified Service Person
     VO     = 0xFFFF # View Only? Used for param 5012, marked as 'not supported'
 

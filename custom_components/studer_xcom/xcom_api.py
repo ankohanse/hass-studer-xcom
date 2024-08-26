@@ -66,15 +66,21 @@ class XcomAPi:
         self._started = False
         self._connected = False
 
+        self._sendPackageLock = asyncio.Lock() # to make sure _sendPackage is never called concurrently
+
 
     async def start(self):
-        _LOGGER.info(f"Starting Xcom TCP server on port {self.localPort}")
+        if not self._started:
+            _LOGGER.info(f"Xcom TCP server start listening on port {self.localPort}")
 
-        self._server = await asyncio.start_server(self._client_connected_cb, "0.0.0.0", self.localPort, limit=1000, family=socket.AF_INET, reuse_port=True, )
-        self._server._start_serving()
-        self._started = True
+            self._server = await asyncio.start_server(self._client_connected_cb, "0.0.0.0", self.localPort, limit=1000, family=socket.AF_INET, reuse_port=True, )
+            self._server._start_serving()
+            self._started = True
 
-        _LOGGER.info("Waiting for Xcom TCP client to connect...")
+            _LOGGER.info("Waiting for Xcom TCP client to connect...")
+        else:
+            _LOGGER.info(f"Xcom TCP server already listening on port {self.localPort}")
+
         return self
 
 
@@ -140,7 +146,7 @@ class XcomAPi:
         if response.isError():
             # Any other error response we will just log, but we also stop waiting for a next response
             msg = SCOM_ERROR_CODES.getByData(response.frame_data.service_data.property_data)
-            _LOGGER.debug(f"Response package for {parameter.nr}:{dstAddr} states error: '{msg}'")
+            _LOGGER.debug(f"Response package for {parameter.nr}:{dstAddr} contains message: '{msg}'")
             return None
 
         # Unpack the response value
@@ -193,7 +199,7 @@ class XcomAPi:
         if response.isError():
             # Any other error response we will just log, but we also stop waiting for a next response
             msg = SCOM_ERROR_CODES.getByData(response.frame_data.service_data.property_data)
-            _LOGGER.debug(f"Response package for {parameter.nr}:{dstAddr} states error: '{msg}'")
+            _LOGGER.debug(f"Response package for {parameter.nr}:{dstAddr} contains message: '{msg}'")
             return False
 
         # Success
@@ -206,39 +212,40 @@ class XcomAPi:
             _LOGGER.info(f"_sendPackage - not connected")
             return None
         
-        # Send the request package to the Xcom client
-        try:
-            #_LOGGER.debug(f"send {request}")
-            self._writer.write(request.getBytes())
+        async with self._sendPackageLock:
+            # Send the request package to the Xcom client
+            try:
+                #_LOGGER.debug(f"send {request}")
+                self._writer.write(request.getBytes())
 
-        except Exception as e:
-            _LOGGER.warning(f"Exception while sending request package to Xcom client: {e}")
-            return None
+            except Exception as e:
+                _LOGGER.warning(f"Exception while sending request package to Xcom client: {e}")
+                return None
 
-        # Receive packages until we get the one we expect
-        try:
-            async with asyncio.timeout(timeout):
-                while True:
-                    response = await XcomPackage.parse(self._reader)
+            # Receive packages until we get the one we expect
+            try:
+                async with asyncio.timeout(timeout):
+                    while True:
+                        response = await XcomPackage.parse(self._reader)
 
-                    if response.isResponse() and \
-                       response.frame_data.service_id == request.frame_data.service_id and \
-                       response.frame_data.service_data.object_id == request.frame_data.service_data.object_id and \
-                       response.frame_data.service_data.property_id == request.frame_data.service_data.property_id:
+                        if response.isResponse() and \
+                        response.frame_data.service_id == request.frame_data.service_id and \
+                        response.frame_data.service_data.object_id == request.frame_data.service_data.object_id and \
+                        response.frame_data.service_data.property_id == request.frame_data.service_data.property_id:
 
-                        # Yes, this is the answer to our request
-                        #_LOGGER.debug(f"recv {response}")
-                        return response
-                    
-                    else:
-                        # No, not an answer to our request, continue loop for next answer (or timeout)
-                        pass
+                            # Yes, this is the answer to our request
+                            #_LOGGER.debug(f"recv {response}")
+                            return response
+                        
+                        else:
+                            # No, not an answer to our request, continue loop for next answer (or timeout)
+                            pass
 
-        except asyncio.TimeoutError:
-            pass
+            except asyncio.TimeoutError:
+                pass
 
-        except Exception as e:
-            _LOGGER.warning(f"Exception while listening for response package from Xcom client: {e}")
+            except Exception as e:
+                _LOGGER.warning(f"Exception while listening for response package from Xcom client: {e}")
 
         return None
 

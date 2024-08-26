@@ -13,6 +13,7 @@ from homeassistant import config_entries, exceptions
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import section
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers.selector import selector
@@ -25,10 +26,14 @@ from homeassistant.const import (
 from .const import (
     DOMAIN,
     DEFAULT_PORT,
+    CONF_VOLTAGE,
     CONF_USER_LEVEL,
     CONF_POLLING_INTERVAL,
+    DEFAULT_VOLTAGE,
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
+    VOLTAGE_120VAC,
+    VOLTAGE_240VAC,
 )
 from .coordinator import (
     StuderCoordinatorFactory,
@@ -59,6 +64,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     
     def __init__(self):
         """Initialize config flow."""
+        self._voltage: str = DEFAULT_VOLTAGE
         self._port: int = DEFAULT_PORT
         self._user_level: str = DEFAULT_USER_LEVEL
         self._devices: list[StuderDeviceConfig] = []
@@ -71,6 +77,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._coordinator = None
         self._dataset = None
         self._progress_tasks: list[asyncio.Task[None] | None] = []
+        self._progress_trace: list[bool] = []
 
 
 
@@ -91,6 +98,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Load existing values
         self._reconfig_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
+        self._voltage = self._reconfig_entry.data.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
         self._port = self._reconfig_entry.data.get(CONF_PORT, DEFAULT_PORT)
         self._user_level = self._reconfig_entry.data.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
         devices_data = self._reconfig_entry.data.get(CONF_DEVICES, [])
@@ -108,6 +116,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step client - handle input {user_input}")
+            self._voltage = user_input.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
             self._port = user_input.get(CONF_PORT, DEFAULT_PORT)
 
             # Check if port is not already in user for another Hub
@@ -131,7 +140,13 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id = "client", 
             data_schema = vol.Schema({
-                vol.Required(CONF_PORT, description={"suggested_value": self._port}): cv.port,
+                vol.Required(CONF_VOLTAGE, description={"suggested_value": self._voltage}): selector({
+                    "select": { 
+                        "options": [VOLTAGE_120VAC, VOLTAGE_240VAC],
+                        "mode": "dropdown"
+                    }
+                }),
+                vol.Required(CONF_PORT, description={"suggested_value": self._port}): cv.port
             }),
             errors = self._errors
         )
@@ -154,6 +169,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         ]
         if not self._progress_tasks:
             self._progress_tasks = [None for _ in progress_steps]
+            self._progress_trace = [True for _ in progress_steps]
             
         progress_task: asyncio.Task[None] | None = None
         progress_action: str = ''
@@ -170,6 +186,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     progress_task = self._progress_tasks[idx]
                     progress_action = step_action
                     progress_percent = step_percent
+                elif self._progress_trace[idx]:
+                    _LOGGER.debug(f"Step progress - task {step_action} done")
+                    self._progress_trace[idx] = False
             
         if progress_task:
             _LOGGER.debug(f"Step progress - show progress, action:{progress_action}, percent:{progress_percent}")
@@ -193,7 +212,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             _LOGGER.info("Discover Xcom connection")
-            self._coordinator = StuderCoordinatorFactory.create_temp(self._port)
+            self._coordinator = StuderCoordinatorFactory.create_temp(self._voltage, self._port)
 
             await self._coordinator.start()
             if not await self._coordinator.wait_until_connected(30):
@@ -218,53 +237,53 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             _LOGGER.info("Discover Xcom devices")
-            if not self._dataset:
-                self._dataset = XcomDatasetFactory.create()
-
+            
             # Send a couple of dummy requests, just to give the client enough time to start listening
-            await asyncio.sleep(1)
-            param = self._dataset.getByNr(XcomDeviceFamilies.XTENDER.nrDiscover, XcomDeviceFamilies.XTENDER.idForNr)
-            addr = XcomDeviceFamilies.XTENDER.addrDevicesStart
-            await self._coordinator.async_request_test(param, addr)
-
             await asyncio.sleep(1)     
-            param = self._dataset.getByNr(XcomDeviceFamilies.RCC.nrDiscover, XcomDeviceFamilies.RCC.idForNr)
-            addr = XcomDeviceFamilies.RCC.addrDevicesStart
-            await self._coordinator.async_request_test(param, addr)
+            await self._async_xcom_device_test(XcomDeviceFamilies.XTENDER.nrDiscover, XcomDeviceFamilies.XTENDER.idForNr, XcomDeviceFamilies.XTENDER.addrDevicesStart)
+            await asyncio.sleep(1)     
+            await self._async_xcom_device_test(XcomDeviceFamilies.RCC.nrDiscover, XcomDeviceFamilies.RCC.idForNr, XcomDeviceFamilies.RCC.addrDevicesStart)
             await asyncio.sleep(1)     
             
+            devices: list[StuderDeviceConfig] = []
             families = XcomDeviceFamilies.getList()
             family_percent = 100.0 / (len(families)+1)
 
             for family in families:
-                # Get value for the first info nr in the family, or otherwise the first param nr
+                # Get value for the specific discovery nr, or otherwise the first info nr or first param nr
                 nr = family.nrDiscover or family.nrInfosStart or family.nrParamsStart or None
                 if not nr:
                     continue
 
-                param = self._dataset.getByNr(nr, family.idForNr)
-
                 # Iterate all addresses in the family, up to the first address that is not found
                 for device_addr in range(family.addrDevicesStart, family.addrDevicesEnd+1):
 
-                    success = await self._coordinator.async_request_test(param, device_addr)
+                    # Send the test request to the device. This will return False in case:
+                    # - the device does not exist (DEVICE_NOT_FOUND)
+                    # - the device does not support the param (INVALID_DATA), used to distinguish BSP from BMS
+                    success = await self._async_xcom_device_test(nr, family.idForNr, device_addr)
                     if success:
                         device_code = family.get_code(device_addr)
                         _LOGGER.info(f"Found device {device_code} via {nr}:{device_addr}")
 
-                        self._devices.append(StuderDeviceConfig(
+                        # In reconfigure, did we already have a deviceConfig for this device?
+                        device_old = next((d for d in self._devices if d.address == device_addr), None)
+
+                        devices.append(StuderDeviceConfig(
                             address = device_addr,
                             code = device_code,
                             family_id = family.id,
-                            numbers = family.nrDefaults
+                            numbers = device_old.numbers if device_old else family.nrDefaults
                         ))
                     else:
                         # Do not test further device addresses in this family
                         break
 
-            if not self._devices:
+            if not devices:
                 self._errors[CONF_PORT] = f"No Studer devices found via Xcom client"
                 return
+            
+            self._devices = devices
                 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
@@ -277,6 +296,15 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
             )
+
+
+    async def _async_xcom_device_test(self, nr, family_id, addr):
+        if not self._dataset:
+            self._dataset = XcomDatasetFactory.create(self._voltage)
+
+        param = self._dataset.getByNr(nr, family_id)
+
+        return await self._coordinator.async_request_test(param, addr)
 
 
     async def _async_xcom_disconnect(self, is_task=True):
@@ -303,7 +331,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         Step 3: specify params and infos numbers for each device
         """
         if not self._dataset:
-            self._dataset = XcomDatasetFactory.create()
+            self._dataset = XcomDatasetFactory.create(self._voltage)
 
         if user_input is not None:
             # Get form data
@@ -399,6 +427,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             # Create the integration entry
             title = f"Studer via Xcom port {self._port}"
             data = {
+                CONF_VOLTAGE: self._voltage,
                 CONF_PORT: self._port,
                 CONF_USER_LEVEL: self._user_level,
                 CONF_DEVICES: [device.as_dict() for device in self._devices],

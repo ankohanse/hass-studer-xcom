@@ -1,0 +1,40 @@
+[
+    {  "_rem": "Definitions below were retrieved from:"},
+    {  "_rem": "  Studer Technical Specification - Xtender serial protocol appendix"},
+    {  "_rem": "  https://portal.studer-innotec.com/Content/docs/appendix.pdf"},
+
+    {  "_rem": "Generated from PDF to Word to Excel to csv to json (last step via https://www.convertcsv.com/csv-to-json.htm)"},
+
+    {  "_rem": "Column descriptions:"},
+    {  "_rem": "  fam  = Device Family"},
+    {  "_rem": "  lvl  = User level required to access the param or info"},
+    {  "_rem": "  pnr  = Parent number in menu structure"},
+    {  "_rem": "  nr   = Number of the param or info"},
+    {  "_rem": "  name = Friendly name of the param or info"},
+    {  "_rem": "  urcc = Data unit of measurement as displayed on RCC"},
+    {  "_rem": "  unit = Data unit of measurement"},
+    {  "_rem": "  def  = Default value"},
+    {  "_rem": "  min  = Minimum value"},
+    {  "_rem": "  max  = Maximum value"},
+    {  "_rem": "  fmt  = Data format"},
+    {  "_rem": "  inc  = Increment step"},
+    {  "_rem": "  opt  = Options for selection in Enums"},
+    {  "_rem": "  rem  = Remarks"},
+    
+
+    {  "_rem": "###"},
+    {  "_rem": "### Xtender 120Vac specific params."},
+    {  "_rem": "### these will overrule the ones defined in xcom_datapoints.json"},
+    {  "_rem": "###"},
+    {   "fam": "xt",   "lvl": "Expert",  "pnr": 1186,   "nr": 1286,   "name": "  AC Output voltage ",   "unit": "Vac",   "def": 120,   "min": 55,   "max": 140,   "fmt": "FLOAT",   "inc": 1 },
+    {   "fam": "xt",   "lvl": "Expert",  "pnr": 1186,   "nr": 1560,   "name": "  Max AC voltage increase with battery voltage ",   "unit": "Vac",   "def": 5,   "min": 2,   "max": 8,   "fmt": "FLOAT",   "inc": 1 },
+    {   "fam": "xt",   "lvl": "Expert",  "pnr": 1471,   "nr": 1309,   "name": "    AC input low limit voltage to allow charger function ",   "unit": "Vac",   "def": 90,   "min": 50,   "max": 115,   "fmt": "FLOAT",   "inc": 1 },
+    {   "fam": "xt",   "lvl": "Expert",  "pnr": 1471,   "nr": 1433,   "name": "    Adaptation range of the input current according to the input voltage ",   "unit": "Vac",   "def": 5,   "min": 2,   "max": 15,   "fmt": "FLOAT",   "inc": 1 },
+    {   "fam": "xt",   "lvl": "Expert",  "pnr": 1197,   "nr": 1199,   "name": "  Input voltage giving an opening of the transfer relay with delay ",   "unit": "Vac",   "def": 100,   "min": 40,   "max": 115,   "fmt": "FLOAT",   "inc": 1 },
+    {   "fam": "xt",   "lvl": "Expert",  "pnr": 1197,   "nr": 1200,   "name": "  Input voltage giving an immediate opening of the transfer relay (UPS) ",   "unit": "Vac",   "def": 90,   "min": 40,   "max": 115,   "fmt": "FLOAT",   "inc": 1 },
+    {   "fam": "xt",   "lvl": "Inst.",   "pnr": 1197,   "nr": 1432,   "name": "  Absolute max limit for input voltage ",   "unit": "Vac",   "def": 135,   "min": 117.5,   "max": 145,   "fmt": "FLOAT",   "inc": 1 },
+  
+    { "_rem": "###"},
+    { "_rem": "### End of file"},
+    { "_rem": "###"}    
+]
