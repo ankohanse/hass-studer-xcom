@@ -29,7 +29,7 @@ class XcomDatapointUnknownException(Exception):
 
 @dataclass
 class XcomDatapoint:
-    family: str
+    family_id: str
     level: LEVEL
     parent: int | None
     nr: int
@@ -120,18 +120,18 @@ class XcomDataset:
         self._datapoints = datapoints
    
 
-    def getByNr(self, nr: int, family: str|None = None) -> XcomDatapoint:
+    def getByNr(self, nr: int, family_id: str|None = None) -> XcomDatapoint:
         for point in self._datapoints:
-            if point.nr == nr and (point.family == family or family is None):
+            if point.nr == nr and (point.family_id == family_id or family_id is None):
                 return point
 
-        raise XcomDatapointUnknownException(id, family)
+        raise XcomDatapointUnknownException(nr, family_id)
     
 
-    def getMenuItems(self, parent: int = 0, family: str|None = None):
+    def getMenuItems(self, parent: int = 0, family_id: str|None = None):
         datapoints = []
         for point in self._datapoints:
-            if point.parent == parent and (point.family == family or family is None):
+            if point.parent == parent and (point.family_id == family_id or family_id is None):
                 datapoints.append(point)
 
         return datapoints

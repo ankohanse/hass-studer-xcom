@@ -68,10 +68,10 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class StuderDeviceConfig:
-    def __init__(self, address, code, family, numbers):
+    def __init__(self, address, code, family_id, numbers):
         self.address = address
         self.code = code
-        self.family = family
+        self.family_id = family_id
         self.numbers = numbers
 
     @staticmethod
@@ -79,7 +79,7 @@ class StuderDeviceConfig:
         return StuderDeviceConfig(
             d["address"],
             d["code"],
-            d["family"],
+            d["family_id"],
             d["numbers"],
         )
 
@@ -88,12 +88,12 @@ class StuderDeviceConfig:
         return {
             "address": self.address,
             "code": self.code,
-            "family": self.family,
+            "family_id": self.family_id,
             "numbers": self.numbers,
         }
     
     def __str__(self) -> str:
-        return f"StuderDeviceConfig(address={self.address}, code={self.code}, family={self.family}, numbers={self.numbers})"
+        return f"StuderDeviceConfig(address={self.address}, code={self.code}, family_id={self.family_id}, numbers={self.numbers})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -245,7 +245,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         dataset = XcomDatasetFactory.create()
 
         for device in self._devices:
-            family = XcomDeviceFamilies.getById(device.family)
+            family = XcomDeviceFamilies.getById(device.family_id)
 
             for nr in device.numbers:
                 try:
@@ -261,7 +261,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         return entity_map
     
 
-    def _create_entity(self, param: XcomDatapoint, device_family: XcomDeviceFamily, device: StuderDeviceConfig) -> StuderEntity | None:
+    def _create_entity(self, param: XcomDatapoint, family: XcomDeviceFamily, device: StuderDeviceConfig) -> StuderEntity | None:
     
         try:
             # Store all properties for easy lookup by entities
@@ -275,7 +275,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code),
                 device_name = f"{PREFIX_NAME} {device.code}",
                 device_addr = device.address,
-                device_model = device_family.model,
+                device_model = family.model,
             )
             return entity
         

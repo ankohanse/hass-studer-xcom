@@ -6,10 +6,6 @@ import struct
 import logging
 from dataclasses import dataclass
 
-from .xcom_const import (
-    OBJ_TYPE,
-)
-
 
 _LOGGER = logging.getLogger(__name__)
 

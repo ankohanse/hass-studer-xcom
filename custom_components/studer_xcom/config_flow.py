@@ -255,7 +255,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         self._devices.append(StuderDeviceConfig(
                             address = device_addr,
                             code = device_code,
-                            family = family.id,
+                            family_id = family.id,
                             numbers = family.nrDefaults
                         ))
                     else:
@@ -317,7 +317,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     val_csv = user_input[device.code] if device.code in user_input else ''
                     device.numbers = list(filter(None, [v.strip() for v in val_csv.split(',')]))
 
-                    validate = await self._valid_numbers(device.code, device.family)
+                    validate = await self._valid_numbers(device.code, device.family_id)
                     device.numbers = validate(device.numbers)
 
                 except Exception as e:
@@ -354,9 +354,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
-    async def _valid_numbers(self, code: str, family:str) -> Callable[[Any], list[int]]:
+    async def _valid_numbers(self, code: str, family_id:str) -> Callable[[Any], list[int]]:
 
-        device_family = XcomDeviceFamilies.getById(family)
+        family = XcomDeviceFamilies.getById(family_id)
         user_level = LEVEL.from_str(self._user_level)
         
         def validate(value: Any) -> list[int]:
@@ -373,10 +373,10 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 # Check that the number is a valid param or infos number within this family
                 nr = int(val)
                 try:
-                    param = self._dataset.getByNr(nr, device_family.idForNr)
+                    param = self._dataset.getByNr(nr, family.idForNr)
 
                 except XcomDatapointUnknownException:
-                    raise vol.Invalid(f"Number {nr} is unknown for {device_family.model} devices")
+                    raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
 
                 if param.obj_type not in [OBJ_TYPE.INFO, OBJ_TYPE.PARAMETER]:
                     raise vol.Invalid(f"Number {nr} is not a valid info or param")
