@@ -29,12 +29,13 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from .const import (
     DIAGNOSTICS_REDACT,
 )
-from .xcom_const import (
-    SCOM_ADDR_BROADCAST,
-    OBJ_TYPE,
-)
 from .xcom_api import (
     XcomAPi,
+    XcomApiWriteException,
+    XcomApiReadException,
+    XcomApiTimeoutException,
+    XcomApiResponseIsError,
+    XcomApiUnpackException,
 )
 from .xcom_datapoints import (
     XcomDatasetFactory,
@@ -212,13 +213,11 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         self._install_id = StuderCoordinator.create_id(self._port)
         self._entity_map: dict[str,StuderEntity] = self._create_entity_map()
-        self._entity_map_ts = datetime.now
+        self._entity_map_ts = datetime.now()
         self.data = self._get_data()
 
-        # Cached data in case communication to Studer Xcom fails
-        self._hass = hass
-        self._store_key = self._port
-        self._store = StuderCoordinatorStore(hass, self._store_key)
+        # Diagnostics gathering
+        self._diagnostics = {}
 
 
     def _get_data(self):
@@ -311,7 +310,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             # Request values for each configured param or infos number (datapoints). 
             # Note that a single (broadcasted) request can result in multiple reponses received 
             # (for instance in systems with more than one inverter)
-            await self._requestAllData()
+            await self._async_request_all_data()
 
             # update cached data for diagnostics
             #await self._async_update_cache(f"entities", self._entity_map)
@@ -323,11 +322,13 @@ class StuderCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Timeout while communicating with API: {err}")
 
 
-    async def _requestAllData(self):
+    async def _async_request_all_data(self):
         """
         Send out requests to the remote Xcom client for each configured parameter or infos number.
         """
         for key,entity in self._entity_map.items():
+
+            diag_key = f"RequestValue {entity.device_name} {entity.level}"
             try:
                 param = entity
                 addr = entity.device_addr
@@ -335,10 +336,13 @@ class StuderCoordinator(DataUpdateCoordinator):
                 value = await self._api.requestValue(param, addr)
                 if value is not None:
                     self._entity_map[key].value = value
-                    self._entity_map_ts = datetime.now
-            
+                    self._entity_map_ts = datetime.now()
+
+                    self._addDiagnostic(diag_key, True)
+
             except Exception as e:
-                _LOGGER.warning(f"Exception while requesting values from Xcom client: {e}")
+                _LOGGER.warning(f"Failed to request value {entity.device_name} {entity.nr} from Xcom client: {e}")
+                self._addDiagnostic(diag_key, False, e)
 
     
     async def async_request_test(self, param, addr):
@@ -348,71 +352,76 @@ class StuderCoordinator(DataUpdateCoordinator):
                 return True
             
         except Exception as e:
-            _LOGGER.warning(f"Exception while requesting test from Xcom client: {e}")
+            _LOGGER.debug(f"Failed to request test value from Xcom client: {e}")
 
         return False
     
 
     async def async_modify_data(self, entity: StuderEntity, value):
+
+        diag_key = f"UpdateValue {entity.device_name} {entity.level}"
         try:
             param = entity
             addr = entity.device_addr
 
             value = await self._api.updateValue(param, value, dstAddr=addr)
             if value:
+                self._addDiagnostic(diag_key, True)
                 return True
             
         except Exception as e:
-            _LOGGER.warning(f"Exception while requesting test from Xcom client: {e}")
+            _LOGGER.warning(f"Failed to update value {entity.device_name} {entity.nr} via Xcom client: {e}")
+            self._addDiagnostic(diag_key, False, e)
 
         return False
 
-    async def _async_update_cache(self, context, data):
-        # worker function
-        async def _async_worker(self, context, data):
-            if not self._store:
-                return
-            
-            # Retrieve cache file contents
-            store = await self._store.async_get_data() or {}
-            cache = store.get("cache", {})
 
-            data_old = cache.get(context, {})
+    def _addDiagnostic(self, diag_key: str, success: bool, e: Exception|None = None):
+        """
+        Add a diagnostics statistic
+        """
+        diag_data = self._diagnostics.get(diag_key, None)
+        if not diag_data:
+            diag_data = {
+                "counters": {
+                    "success": 0,
+                    "fail_write": 0,
+                    "fail_read": 0,
+                    "fail_timout": 0,
+                    "fail_error": 0,
+                    "fail_unpack": 0,
+                    "fail_other": 0,
+                },
+                "last_errors": [],
+                "last_error_ts": None,
+            }
 
-            # We only update the cached contents once a day to prevent too many writes of unchanged data
-            ts_str = data_old.get("ts", "")
-            ts_old = datetime.fromisoformat(ts_str) if ts_str else datetime.min
-            ts_new = datetime.now()
+        if success:
+            diag_data["counters"]["success"] += 1
+        else:
+            if not e:
+                diag_data["counters"]["fail_other"] += 1
+            elif e is XcomApiWriteException:
+                diag_data["counters"]["fail_write"] += 1
+            elif e is XcomApiReadException:
+                diag_data["counters"]["fail_read"] += 1
+            elif e is XcomApiTimeoutException:
+                diag_data["counters"]["fail_timeout"] += 1
+            elif e is XcomApiResponseIsError:
+                diag_data["counters"]["fail_error"] += 1
+            elif e is XcomApiUnpackException:
+                diag_data["counters"]["fail_unpack"] += 1
+            else:
+                diag_data["counters"]["fail_other"] += 1
 
-            if (ts_new - ts_old).total_seconds() < 86400-300:   # 1 day minus 5 minutes
-                # Not expired yet
-                return
+            if e:
+                diag_data["last_error_ts"] = str(datetime.now())
+                diag_data["last_errors"].append(str(e))
 
-            _LOGGER.debug(f"Update cache: {context}")
-        
-            # Update and write new cache file contents
-            cache[context] = { "ts": ts_new } | data
-            
-            store["cache"] = cache
-            await self._store.async_set_data(store)
+                while len(diag_data["last_errors"]) > 16:
+                    diag_data["last_errors"].pop(0)
 
-        # Create the worker task to update diagnostics in the background,
-        # but do not let main loop wait for it to finish
-        if self._hass:
-            self._hass.async_create_task(_async_worker(self, context, data))
-
-    
-    async def _async_fetch_from_cache(self, context):
-        if not self._store:
-            return {}
-        
-        _LOGGER.debug(f"Fetch from cache: {context}")
-        
-        store = await self._store.async_get_data() or {}
-        cache = store.get("cache", {})
-        data = cache.get(context, {})
-
-        return data
+        self._diagnostics[diag_key] = diag_data
 
     
     async def async_get_diagnostics(self) -> dict[str, Any]:
@@ -424,6 +433,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 "entity_map_ts": str(self._entity_map_ts),
                 "entity_map": entity_map,
             },
+            "diagnostics": self._diagnostics,
         },
     
 

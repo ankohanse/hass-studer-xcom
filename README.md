@@ -201,7 +201,8 @@ To reconfigure:
 When the value of a Studer param is changed via this integration (via a Number, Select or Switch entity), these are written via Xcom to the affected device. 
 Changes are stored in the device's RAM memory, not in its flash memory as you can only write to flash a limited number of time over its lifetime.
 
-However, reading back the value from the entity will be from flash (querying RAM gives unreliable responses). As a result, the change to the entity value is not visible. You can only tell from the behavior of the PV system that the Studer param was indeed changed. After a restart/reboot of the PV system the system will revert to the value from Flash. So you may want to periodically repeat the write of changed param values via an automation.
+However, reading back the value from the entity will be from flash (querying RAM gives unreliable responses). As a result, the change to the entity value is not visible. You can only tell from the behavior of the PV system that the Studer param was indeed changed.  
+After a restart/reboot of the PV system the system will revert to the value from Flash. So you may want to periodically repeat the write of changed param values via an automation.
 
 **IMPORTANT**:
 
