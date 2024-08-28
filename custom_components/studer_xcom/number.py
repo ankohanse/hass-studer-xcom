@@ -189,7 +189,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             # Note that xcom will always return the value from flash, not the updated value in RAM
             # Therefore we force to set the current native value to the set_native_value if it is set (in RAM),
             # and fall back to the xcom value from flash if no set_native_value is set.
-            if not self._set_state:
+            if self._set_state is None:
                 self._attr_native_value = attr_val
                 self._attr_state = attr_val
             
@@ -223,7 +223,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
                 return
         
-        _LOGGER.debug(f"Set {self.entity_id} to {value} {self._attr_unit or ""} ({entity_value} {entity.unit or ""})")
+        _LOGGER.debug(f"Set {self.entity_id} to {value} {self._attr_unit or ""} ({entity_value})")
 
         success = await self._coordinator.async_modify_data(entity, entity_value)
         if success:

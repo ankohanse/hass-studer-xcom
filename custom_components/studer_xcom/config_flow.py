@@ -238,15 +238,6 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             _LOGGER.info("Discover Xcom devices")
             
-            # AJH still needed now the API does retries?
-            #
-            # Send a couple of dummy requests, just to give the client enough time to start listening
-            #await asyncio.sleep(1)     
-            #await self._async_xcom_device_test(XcomDeviceFamilies.XTENDER.nrDiscover, XcomDeviceFamilies.XTENDER.idForNr, XcomDeviceFamilies.XTENDER.addrDevicesStart)
-            #await asyncio.sleep(1)     
-            #await self._async_xcom_device_test(XcomDeviceFamilies.RCC.nrDiscover, XcomDeviceFamilies.RCC.idForNr, XcomDeviceFamilies.RCC.addrDevicesStart)
-            #await asyncio.sleep(1)     
-            
             devices: list[StuderDeviceConfig] = []
             families = XcomDeviceFamilies.getList()
             family_percent = 100.0 / (len(families)+1)

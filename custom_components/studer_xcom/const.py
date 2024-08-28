@@ -24,6 +24,7 @@ Domain: {DOMAIN}
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SWITCH,
@@ -63,13 +64,13 @@ ATTR_XCOM_STATE = "xcom_state"
 ATTR_SET_STATE = "set_state"
 
 # Used to recognize a binary_sensor from a regular sensor
-BINARY_SENSOR_VALUES_ON = ['1', 'on', 'On']
-BINARY_SENSOR_VALUES_OFF = ['0', 'off', 'Off']
+BINARY_SENSOR_VALUES_ON = [1, True, '1', 'on', 'On']
+BINARY_SENSOR_VALUES_OFF = [0, False, '0', 'off', 'Off']
 BINARY_SENSOR_VALUES_ALL = BINARY_SENSOR_VALUES_ON + BINARY_SENSOR_VALUES_OFF
 
 # Used to recognized a switch instead of a select
-SWITCH_VALUES_ON = ['1', 'On']
-SWITCH_VALUES_OFF = ['0', 'Off']
+SWITCH_VALUES_ON = [1, True, '1', 'On']
+SWITCH_VALUES_OFF = [0, False, '0', 'Off']
 SWITCH_VALUES_ALL = SWITCH_VALUES_ON + SWITCH_VALUES_OFF
 
 # Diagnostics

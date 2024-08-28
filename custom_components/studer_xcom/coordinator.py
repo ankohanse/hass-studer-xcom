@@ -106,21 +106,25 @@ class StuderDeviceConfig:
 class StuderEntity(XcomDatapoint):
     def __init__(self, param, object_id, unique_id, device_id, device_name, device_addr, device_model):
         # from XcomDatapoint
+        self.family_id = param.family_id
+        self.level = param.level
+        self.parent = param.parent
         self.nr = param.nr
         self.name = param.name
-        self.level = param.level
-        self.format = param.format
-        self.value = None
+        self.abbr = param.abbr
         self.unit = param.unit
-        self.weight = 1
-        self.options = param.options
+        self.format = param.format
+        self.default = param.default
         self.min = param.min
         self.max = param.max
         self.inc = param.inc
+        self.options = param.options
 
         # for StuderEntity
         self.object_id = object_id
         self.unique_id = unique_id
+        self.value = None
+        self.weight = 1
 
         self.device_id = device_id
         self.device_addr = device_addr
@@ -364,8 +368,9 @@ class StuderCoordinator(DataUpdateCoordinator):
             param = entity
             addr = entity.device_addr
 
-            value = await self._api.updateValue(param, value, dstAddr=addr)
-            if value:
+            result = await self._api.updateValue(param, value, dstAddr=addr)
+            if result==True:
+                _LOGGER.info(f"Successfully updated {entity.device_name} {entity.nr} to value {value}")
                 self._addDiagnostic(diag_key, True)
                 return True
             

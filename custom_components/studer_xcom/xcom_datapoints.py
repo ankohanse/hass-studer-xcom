@@ -37,10 +37,10 @@ class XcomDatapoint:
     abbr: str   # abbreviated/coded name
     unit: str
     format: FORMAT
-    default: float = None
-    min: float = None
-    max: float = None
-    inc: float = None
+    default: float|str = None
+    min: float|str = None
+    max: float|str = None
+    inc: float|str = None
     options: dict = None
 
     @staticmethod
@@ -73,10 +73,10 @@ class XcomDatapoint:
         fmt = FORMAT.from_str(fmt)
         
         name = str(name).strip()
-        dft = float(dft) if (type(dft) is int or type(dft) is float) else None
-        min = float(min) if (type(min) is int or type(min) is float) else None
-        max = float(max) if (type(max) is int or type(max) is float) else None
-        inc = float(inc) if (type(inc) is int or type(inc) is float) else None
+        dft = float(dft) if (type(dft) is int or type(dft) is float) else "S" if (dft=="S") else None
+        min = float(min) if (type(min) is int or type(min) is float) else "S" if (dft=="S") else None
+        max = float(max) if (type(max) is int or type(max) is float) else "S" if (dft=="S") else None
+        inc = float(inc) if (type(inc) is int or type(inc) is float) else "S" if (dft=="S") else None
             
         return XcomDatapoint(fam, lvl, pnr, nr, name, abbr, unit, fmt, dft, min, max, inc, opt)
         

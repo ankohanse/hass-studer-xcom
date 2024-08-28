@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import math
+from typing import Mapping
 
 from homeassistant import config_entries
 from homeassistant import exceptions
-from homeassistant.components.select import SelectEntity
-from homeassistant.components.select import ENTITY_ID_FORMAT
+from homeassistant.components.button import ButtonDeviceClass
+from homeassistant.components.button import ButtonEntity
+from homeassistant.components.button import ENTITY_ID_FORMAT
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
@@ -31,8 +33,6 @@ from .const import (
     DOMAIN,
     COORDINATOR,
     MANUFACTURER,
-    ATTR_XCOM_STATE,
-    ATTR_SET_STATE,
 )
 
 from .entity_base import (
@@ -53,12 +53,15 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     Setting up the adding and updating of select entities
     """
     helper = StuderEntityHelperFactory.create(hass, config_entry)
-    await helper.async_setup_entry(Platform.SELECT, StuderSelect, async_add_entities)
+    await helper.async_setup_entry(Platform.BUTTON, StuderButton, async_add_entities)
 
 
-class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
+class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
     """
-    Representation of a Studer Select Entity.
+    Representation of a Studer Button Entity.
+    
+    Could be a configuration setting that is part of a pump like ESybox, Esybox.mini
+    Or could be part of a communication module like DConnect Box/Box2
     """
     
     def __init__(self, coordinator, install_id, entity) -> None:
@@ -70,7 +73,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         self.object_id = entity.object_id
         self.entity_id = ENTITY_ID_FORMAT.format(entity.unique_id)
         self.install_id = install_id
-        
+
         self._coordinator = coordinator
 
         # Custom extra attributes for the entity
@@ -99,16 +102,6 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         """Return the name of the entity."""
         return self._attr_name
         
-        
-    @property
-    def extra_state_attributes(self) -> dict[str, str | list[str]]:
-        """Return the state attributes."""
-        if self._xcom_state:
-            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
-        if self._set_state:
-            self._attributes[ATTR_SET_STATE] = self._set_state
-
-        return self._attributes        
     
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -128,26 +121,19 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
     
     def _update_attributes(self, entity, is_create):
         
-        if entity.format != FORMAT.SHORT_ENUM and entity.format != FORMAT.LONG_ENUM:
-            _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
-
-        # Process any changes
         changed = False
-        attr_val = entity.options.get(str(entity.value), entity.value) if entity.value!=None else None
-
+        
         # update creation-time only attributes
         if is_create:
             self._attr_unique_id = entity.unique_id
-            
+
             self._attr_has_entity_name = True
             self._attr_name = entity.name
             self._name = entity.name
             
-            self._attr_options = list(entity.options.values())
-            
             self._attr_entity_category = self.get_entity_category()
             self._attr_device_class = None
-            
+
             self._attr_device_info = DeviceInfo(
                identifiers = {(DOMAIN, entity.device_id)},
                name = entity.device_name,
@@ -156,36 +142,17 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
             )
             changed = True
         
-        # update value if it has changed
-        # Note that xcom will always return the value from flash, not the updated value in RAM
-        # Therefore we force to set the current option to the selected option if it is set (in RAM),
-        # and fall back to the xcom option from flash if no selected option is set.
-        if is_create or self._xcom_state != attr_val:
-            self._xcom_state = attr_val
-
-            if self._set_state is None:
-                self._attr_current_option = attr_val
-
-            self._attr_unit_of_measurement = self.get_unit()
-            self._attr_icon = self.get_icon()
-            changed = True
-
         return changed
     
-    
-    async def async_select_option(self, option: str) -> None:
-        """Change the selected option"""
+
+    async def async_press(self) -> None:
+        """Press the button."""
         entity_map = self._coordinator.data
         entity = entity_map.get(self.object_id)
 
-        data_val = next((k for k,v in entity.options.items() if v == option), None)
-        if data_val is not None:
-            _LOGGER.info(f"Set {self.entity_id} to {option} ({data_val})")
-                
-            success = await self._coordinator.async_modify_data(entity, data_val)
-            if success:
-                self._attr_current_option = option
-                self._set_state = option
-                self.async_write_ha_state()
-    
-    
+        data_val = 1
+        _LOGGER.info(f"Set {self.entity_id} to Signal ({data_val})")
+            
+        success = await self._coordinator.async_modify_data(entity, data_val)
+        if success:
+            self.async_write_ha_state()

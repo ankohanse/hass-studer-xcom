@@ -173,7 +173,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             self._name = entity.name
             
             self._attr_entity_category = self.get_entity_category()
-            self._attr_device_class = SwitchDeviceClass.SWITCH
+            self._attr_device_class = None
 
             self._attr_device_info = DeviceInfo(
                identifiers = {(DOMAIN, entity.device_id)},
@@ -190,7 +190,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             # Note that xcom will always return the value from flash, not the updated value in RAM
             # Therefore we force to set the current state to the changed state if it is set (in RAM),
             # and fall back to the xcom value from flash if no changes state is set.
-            if not self._set_state:
+            if self._set_state is None:
                 self._attr_is_on = attr_is_on
                 self._attr_state = attr_state
             
@@ -206,8 +206,16 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         entity_map = self._coordinator.data
         entity = entity_map.get(self.object_id)
 
-        data_val = next((k for k,v in entity.options.items() if k in SWITCH_VALUES_ON or v in SWITCH_VALUES_ON), None)
-        if data_val:
+        match entity.format:
+            case FORMAT.BOOL:
+                data_val = 1
+            case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+                data_val = next((k for k,v in entity.options.items() if k in SWITCH_VALUES_ON or v in SWITCH_VALUES_ON), None)
+            case _:
+                _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
+                data_val = None
+                
+        if data_val is not None:
             _LOGGER.info(f"Set {self.entity_id} to ON ({data_val})")
             
             success = await self._coordinator.async_modify_data(entity, data_val)
@@ -223,8 +231,16 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         entity_map = self._coordinator.data
         entity = entity_map.get(self.object_id)
 
-        data_val = next((k for k,v in entity.options.items() if k in SWITCH_VALUES_OFF or v in SWITCH_VALUES_OFF), None)
-        if data_val:
+        match entity.format:
+            case FORMAT.BOOL:
+                data_val = 0
+            case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+                data_val = next((k for k,v in entity.options.items() if k in SWITCH_VALUES_OFF or v in SWITCH_VALUES_OFF), None)
+            case _:
+                _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
+                data_val = None
+
+        if data_val is not None:
             _LOGGER.info(f"Set {self.entity_id} to OFF ({data_val})")
             
             success = await self._coordinator.async_modify_data(entity, data_val)

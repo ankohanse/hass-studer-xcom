@@ -268,7 +268,6 @@ class XcomAPi:
                     raise XcomApiResponseIsError(f"Response package for {parameter.nr}:{dstAddr} contains message: '{msg}'")
 
                 # Success
-                _LOGGER.info(f"Successfully updated value {parameter} on addr {dstAddr}")
                 return True
             
             except Exception as e:

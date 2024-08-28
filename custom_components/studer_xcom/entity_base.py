@@ -163,11 +163,17 @@ class StuderEntityHelper:
                     # With more values or not of ON/OFF type it becomes a Select
                     return Platform.SELECT
                 
-                case FORMAT.FLOAT | FORMAT.INT32:
+                case FORMAT.INT32:
+                    if entity.default=="S" or entity.min=="S" or entity.max=="S":
+                        return Platform.BUTTON
+                    else:
+                        return Platform.NUMBER
+
+                case FORMAT.FLOAT:
                     return Platform.NUMBER
                 
                 case _:
-                    _LOGGER.waring(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
+                    _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
                     return None
                 
         elif entity.obj_type == OBJ_TYPE.INFO:
@@ -188,11 +194,11 @@ class StuderEntityHelper:
                     return Platform.SENSOR
                 
                 case _:
-                    _LOGGER.waring(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
+                    _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
                     return None
                 
         else:
-            _LOGGER.waring(f"Unexpected entity obj_type ({entity.obj_type}) in _get_entity_platform")
+            _LOGGER.warning(f"Unexpected entity obj_type ({entity.obj_type}) in _get_entity_platform")
             return None
     
 
@@ -393,21 +399,22 @@ class StuderEntity(Entity):
             return None
         
         # Return CONFIG for params in groups associated with configuration
-        # and that an export or installer is allowed to change
         # Leads to the entities being added under 'Configuration'
         # Typically intended for restart or update functionality
-        levels_config = []
-        if self._entity.level in levels_config:
+        nrs_config = []
+        if self._entity.nr in nrs_config:
             return EntityCategory.CONFIG
             
         # Return DIAGNOSTIC for some specific entries associated with others that are DIAGNOSTIC
+        # Leads to the entities being added under 'Diagnostic'
         nrs_diag = []
         if self._entity.nr in nrs_diag:
             return EntityCategory.DIAGNOSTIC
         
-        # Return DIAGNOSTIC for params that are a setting, unlikely to change often
+        # Return None for params that are a setting
+        # Leads to the entities being added under 'Controls'
         if self._entity.obj_type == OBJ_TYPE.PARAMETER:
-            return EntityCategory.DIAGNOSTIC
+            return None
         
         # Return None for all others
         return None
