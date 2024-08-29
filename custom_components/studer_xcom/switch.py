@@ -88,6 +88,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
         self._xcom_state = None
+        self._set_is_on = None
         self._set_state = None
 
         # Create all attributes
@@ -184,15 +185,13 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             changed = True
         
         # update value if it has changed
+        # Note that xcom will always return the value from flash, not the updated value in RAM
+        # Therefore we force to set the current state to the changed state if it is set (in RAM),
+        # and fall back to the xcom value from flash if no changes state is set.
         if is_create or self._xcom_state != attr_state:
             self._xcom_state = attr_state
-
-            # Note that xcom will always return the value from flash, not the updated value in RAM
-            # Therefore we force to set the current state to the changed state if it is set (in RAM),
-            # and fall back to the xcom value from flash if no changes state is set.
-            if self._set_state is None:
-                self._attr_is_on = attr_is_on
-                self._attr_state = attr_state
+            self._attr_is_on = self._set_is_on if self._set_is_on is not None else attr_is_on
+            self._attr_state = self._set_state if self._set_state is not None else attr_state
             
             self._attr_unit_of_measurement = self.get_unit()
             self._attr_icon = self.get_icon()
@@ -222,6 +221,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             if success:
                 self._attr_is_on = True
                 self._attr_state = STATE_ON
+                self._set_is_on = True
                 self._set_state = STATE_ON
                 self.async_write_ha_state()
     
@@ -247,6 +247,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             if success:
                 self._attr_is_on = False
                 self._attr_state = STATE_OFF
+                self._set_is_on = False
                 self._set_state = STATE_OFF
                 self.async_write_ha_state()
     

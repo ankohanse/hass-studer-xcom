@@ -167,7 +167,7 @@ class XcomAPi:
                     service_id = SCOM_SERVICE.READ,
                     object_type = SCOM_OBJ_TYPE.fromObjType(parameter.obj_type),
                     object_id = parameter.nr,
-                    property_id = SCOM_QSP_ID.VALUE,
+                    property_id = SCOM_QSP_ID.UNSAVED_VALUE if parameter.obj_type == OBJ_TYPE.PARAMETER else SCOM_QSP_ID.VALUE,
                     property_data = XcomData.NONE,
                     dst_addr = dstAddr
                 )

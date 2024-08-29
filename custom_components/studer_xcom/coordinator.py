@@ -345,7 +345,8 @@ class StuderCoordinator(DataUpdateCoordinator):
                     self._addDiagnostic(diag_key, True)
 
             except Exception as e:
-                _LOGGER.warning(f"Failed to request value {entity.device_name} {entity.nr} from Xcom client: {e}")
+                if e is not XcomApiTimeoutException:
+                    _LOGGER.warning(f"Failed to request value {entity.device_name} {entity.nr} from Xcom client: {e}")
                 self._addDiagnostic(diag_key, False, e)
 
     

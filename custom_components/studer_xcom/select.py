@@ -162,9 +162,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         # and fall back to the xcom option from flash if no selected option is set.
         if is_create or self._xcom_state != attr_val:
             self._xcom_state = attr_val
-
-            if self._set_state is None:
-                self._attr_current_option = attr_val
+            self._attr_current_option = self._set_state if self._set_state is not None else attr_val
 
             self._attr_unit_of_measurement = self.get_unit()
             self._attr_icon = self.get_icon()

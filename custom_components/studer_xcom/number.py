@@ -183,23 +183,19 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             changed = True
         
         # update value if it has changed
+        # Note that xcom will always return the value from flash, not the updated value in RAM
+        # Therefore we force to set the current native value to the set_native_value if it is set (in RAM),
+        # and fall back to the xcom value from flash if no set_native_value is set.
         if is_create or self._xcom_state != attr_val:
             self._xcom_state = attr_val
-
-            # Note that xcom will always return the value from flash, not the updated value in RAM
-            # Therefore we force to set the current native value to the set_native_value if it is set (in RAM),
-            # and fall back to the xcom value from flash if no set_native_value is set.
-            if self._set_state is None:
-                self._attr_native_value = attr_val
-                self._attr_state = attr_val
+            self._attr_native_value = self._set_state if self._set_state is not None else attr_val
+            self._attr_state = self._set_state if self._set_state is not None else attr_val
             
             self._attr_native_unit_of_measurement = self.get_unit()
             self._attr_icon = self.get_icon()
             changed = True
 
-
-        if is_create or self._attr_native_value != attr_val:
-            self._attr_native_value = attr_val
+        return changed    
     
     
     async def async_set_native_value(self, value: float) -> None:
@@ -230,3 +226,5 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             self._attr_native_value = value
             self._set_state = value
             self.async_write_ha_state()
+            _LOGGER.debug(f"after modify data for entity {entity.device_name} {entity.nr}. _set_state={self._set_state}")
+
