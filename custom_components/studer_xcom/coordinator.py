@@ -70,6 +70,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+MODIFIED_PARAMS = "ModifiedParams"
+
 
 class StuderDeviceConfig:
     def __init__(self, address, code, family_id, numbers):
@@ -123,8 +125,9 @@ class StuderEntity(XcomDatapoint):
         # for StuderEntity
         self.object_id = object_id
         self.unique_id = unique_id
-        self.value = None
         self.weight = 1
+        self.value = None
+        self.valueModified = None
 
         self.device_id = device_id
         self.device_addr = device_addr
@@ -192,7 +195,7 @@ class StuderCoordinatorFactory:
 
 class StuderCoordinator(DataUpdateCoordinator):
     """My custom coordinator."""
-    
+
     def __init__(self, hass, config: dict[str,Any], options: dict[str,Any], is_temp=False):
         """Initialize my coordinator."""
         super().__init__(
@@ -220,6 +223,13 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._entity_map_ts = datetime.now()
         self.data = self._get_data()
 
+        # Cached data to persist updated params saved into device RAM
+        self._hass = hass
+        self._store_key = self._install_id
+        self._store = StuderCoordinatorStore(hass, self._store_key)
+        self._modified_map: dict[str,Any] = {}
+        self._modified_map_ts = datetime.now()
+        
         # Diagnostics gathering
         self._diagnostics = {}
 
@@ -229,6 +239,9 @@ class StuderCoordinator(DataUpdateCoordinator):
 
 
     async def start(self):
+        self._modified_map = await self._async_fetch_from_cache(MODIFIED_PARAMS)
+        self._modified_map_ts = datetime.now()
+
         await self._api.start()
 
     
@@ -330,7 +343,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         Send out requests to the remote Xcom client for each configured parameter or infos number.
         """
-        for key,entity in self._entity_map.items():
+        for entity in self._entity_map.values():
 
             diag_key = f"RequestValue {entity.device_name} {entity.level}"
             try:
@@ -339,15 +352,16 @@ class StuderCoordinator(DataUpdateCoordinator):
             
                 value = await self._api.requestValue(param, addr)
                 if value is not None:
-                    self._entity_map[key].value = value
+                    self._entity_map[entity.object_id].value = value
+                    self._entity_map[entity.object_id].valueModified = self._getModified(entity)
                     self._entity_map_ts = datetime.now()
 
-                    self._addDiagnostic(diag_key, True)
+                    await self._addDiagnostic(diag_key, True)
 
             except Exception as e:
                 if e is not XcomApiTimeoutException:
                     _LOGGER.warning(f"Failed to request value {entity.device_name} {entity.nr} from Xcom client: {e}")
-                self._addDiagnostic(diag_key, False, e)
+                await self._addDiagnostic(diag_key, False, e)
 
     
     async def async_request_test(self, param, addr):
@@ -365,6 +379,7 @@ class StuderCoordinator(DataUpdateCoordinator):
     async def async_modify_data(self, entity: StuderEntity, value):
 
         diag_key = f"UpdateValue {entity.device_name} {entity.level}"
+        modify_key = f"UpdateValue {entity.device_name} {entity.nr}"
         try:
             param = entity
             addr = entity.device_addr
@@ -372,17 +387,83 @@ class StuderCoordinator(DataUpdateCoordinator):
             result = await self._api.updateValue(param, value, dstAddr=addr)
             if result==True:
                 _LOGGER.info(f"Successfully updated {entity.device_name} {entity.nr} to value {value}")
-                self._addDiagnostic(diag_key, True)
+
+                self._entity_map[entity.object_id].valueModified = value
+                await self._addModified(entity, value)
+                await self._addDiagnostic(diag_key, True)
                 return True
             
         except Exception as e:
             _LOGGER.warning(f"Failed to update value {entity.device_name} {entity.nr} via Xcom client: {e}")
-            self._addDiagnostic(diag_key, False, e)
+            await self._addDiagnostic(diag_key, False, e)
 
         return False
 
 
-    def _addDiagnostic(self, diag_key: str, success: bool, e: Exception|None = None):
+    async def _async_update_cache(self, context, data, force = False):
+        # worker function
+        async def _async_worker(self, context, data):
+            if not self._store:
+                return
+            
+            # Retrieve cache file contents
+            store = await self._store.async_get_data() or {}
+            cache = store.get("cache", {})
+
+            data_old = cache.get(context, {})
+
+            # We only update the cached contents once a day to prevent too many writes of unchanged data
+            ts_str = data_old.get("ts", "")
+            ts_old = datetime.fromisoformat(ts_str) if ts_str else datetime.min
+            ts_new = datetime.now()
+
+            if not force and (ts_new - ts_old).total_seconds() < 86400-300:   # 1 day minus 5 minutes
+                # Not expired yet
+                return
+
+            _LOGGER.debug(f"Update cache: {context} to {data}")
+        
+            # Update and write new cache file contents
+            cache[context] = { "ts": ts_new } | data
+            
+            store["cache"] = cache
+            await self._store.async_set_data(store)
+
+        # Create the worker task to update diagnostics in the background,
+        # but do not let main loop wait for it to finish
+        if self._hass:
+            data["ts"] = datetime.now()
+            self._hass.async_create_task(_async_worker(self, context, data))
+
+    
+    async def _async_fetch_from_cache(self, context):
+        if not self._store:
+            return {}
+        
+        store = await self._store.async_get_data() or {}
+        cache = store.get("cache", {})
+        data = cache.get(context, {})
+
+        _LOGGER.debug(f"Fetch from cache: {context}, data: {data}")
+        
+        return data
+    
+
+    def _getModified(self, entity: StuderEntity) -> Any:
+        return self._modified_map.get(entity.object_id, None)
+
+
+    async def _addModified(self, entity: StuderEntity, value: Any):
+        """
+        Remember a modified params value. Persist it in cache.
+        """
+        self._modified_map[entity.object_id] = value
+        self._modified_map_ts = datetime.now()
+
+        await self._async_update_cache(MODIFIED_PARAMS, self._modified_map, force=True)
+
+    
+    async def _addDiagnostic(self, diag_key: str, success: bool, e: Exception|None = None):
         """
         Add a diagnostics statistic
         """
@@ -438,6 +519,8 @@ class StuderCoordinator(DataUpdateCoordinator):
                 "install_id": self._install_id,
                 "entity_map_ts": str(self._entity_map_ts),
                 "entity_map": entity_map,
+                "modified_map_ts": str(self._modified_map_ts),
+                "modified_map": self._modified_map,
             },
             "diagnostics": self._diagnostics,
         },

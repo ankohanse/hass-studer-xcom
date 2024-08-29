@@ -40,8 +40,8 @@ from .const import (
     MANUFACTURER,
     SWITCH_VALUES_ON,
     SWITCH_VALUES_OFF,
-    ATTR_XCOM_STATE,
-    ATTR_SET_STATE,
+    ATTR_XCOM_FLASH_STATE,
+    ATTR_XCOM_RAM_STATE,
 )
 
 from .entity_base import (
@@ -87,7 +87,8 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state = None
+        self._xcom_flash_state = None
+        self._xcom_ram_state = None
         self._set_is_on = None
         self._set_state = None
 
@@ -116,10 +117,10 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
     @property
     def extra_state_attributes(self) -> dict[str, str | list[str]]:
         """Return the state attributes."""
-        if self._xcom_state:
-            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
-        if self._set_state:
-            self._attributes[ATTR_SET_STATE] = self._set_state
+        if self._xcom_flash_state:
+            self._attributes[ATTR_XCOM_FLASH_STATE] = self._xcom_flash_state
+        if self._xcom_ram_state:
+            self._attributes[ATTR_XCOM_RAM_STATE] = self._xcom_ram_state
 
         return self._attributes        
     
@@ -141,21 +142,23 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
     
     def _update_attributes(self, entity, is_create):
         
+        value = entity.valueModified if entity.valueModified is not None else entity.value
+
         match entity.format:
             case FORMAT.BOOL:
-                val = entity.value
+                attr_val = value
                 
             case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
-                val = entity.options.values.get(entity.value, entity.value)
+                attr_val = entity.options.values.get(value, value)
 
             case _:
                 _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
 
-        if val in SWITCH_VALUES_ON:
+        if attr_val in SWITCH_VALUES_ON:
             attr_is_on = True
             attr_state = STATE_ON
             
-        elif val in SWITCH_VALUES_OFF:
+        elif attr_val in SWITCH_VALUES_OFF:
             attr_is_on = False
             attr_state = STATE_OFF
         else:
@@ -185,13 +188,13 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             changed = True
         
         # update value if it has changed
-        # Note that xcom will always return the value from flash, not the updated value in RAM
-        # Therefore we force to set the current state to the changed state if it is set (in RAM),
-        # and fall back to the xcom value from flash if no changes state is set.
-        if is_create or self._xcom_state != attr_state:
-            self._xcom_state = attr_state
-            self._attr_is_on = self._set_is_on if self._set_is_on is not None else attr_is_on
-            self._attr_state = self._set_state if self._set_state is not None else attr_state
+        if is_create or self._xcom_flash_state != entity.value:
+            self._xcom_flash_state = entity.value
+            self._xcom_ram_state = entity.valueModified
+
+        if is_create or self._attr_is_on != attr_is_on:
+            self._attr_is_on = attr_is_on
+            self._attr_state = attr_state
             
             self._attr_unit_of_measurement = self.get_unit()
             self._attr_icon = self.get_icon()
@@ -221,8 +224,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             if success:
                 self._attr_is_on = True
                 self._attr_state = STATE_ON
-                self._set_is_on = True
-                self._set_state = STATE_ON
+                self._xcom_ram_state = data_val
                 self.async_write_ha_state()
     
     
@@ -247,7 +249,6 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             if success:
                 self._attr_is_on = False
                 self._attr_state = STATE_OFF
-                self._set_is_on = False
-                self._set_state = STATE_OFF
+                self._xcom_ram_state = data_val
                 self.async_write_ha_state()
     

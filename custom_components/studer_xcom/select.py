@@ -31,8 +31,8 @@ from .const import (
     DOMAIN,
     COORDINATOR,
     MANUFACTURER,
-    ATTR_XCOM_STATE,
-    ATTR_SET_STATE,
+    ATTR_XCOM_FLASH_STATE,
+    ATTR_XCOM_RAM_STATE,
 )
 
 from .entity_base import (
@@ -75,7 +75,8 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state = None
+        self._xcom_flash_state = None
+        self._xcom_ram_state = None
         self._set_state = None
 
         # Create all attributes
@@ -103,10 +104,10 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
     @property
     def extra_state_attributes(self) -> dict[str, str | list[str]]:
         """Return the state attributes."""
-        if self._xcom_state:
-            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
-        if self._set_state:
-            self._attributes[ATTR_SET_STATE] = self._set_state
+        if self._xcom_flash_state:
+            self._attributes[ATTR_XCOM_FLASH_STATE] = self._xcom_flash_state
+        if self._xcom_ram_state:
+            self._attributes[ATTR_XCOM_RAM_STATE] = self._xcom_ram_state
 
         return self._attributes        
     
@@ -133,7 +134,9 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
 
         # Process any changes
         changed = False
-        attr_val = entity.options.get(str(entity.value), entity.value) if entity.value!=None else None
+        value = entity.valueModified if entity.valueModified is not None else entity.value
+
+        attr_val = entity.options.get(str(value), value) if value!=None else None
 
         # update creation-time only attributes
         if is_create:
@@ -157,12 +160,12 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
             changed = True
         
         # update value if it has changed
-        # Note that xcom will always return the value from flash, not the updated value in RAM
-        # Therefore we force to set the current option to the selected option if it is set (in RAM),
-        # and fall back to the xcom option from flash if no selected option is set.
-        if is_create or self._xcom_state != attr_val:
-            self._xcom_state = attr_val
-            self._attr_current_option = self._set_state if self._set_state is not None else attr_val
+        if is_create or self._xcom_flash_state != entity.value:
+            self._xcom_flash_state = entity.value
+            self._xcom_ram_state = entity.valueModified
+
+        if is_create or self._attr_current_option != attr_val:
+            self._attr_current_option = attr_val
 
             self._attr_unit_of_measurement = self.get_unit()
             self._attr_icon = self.get_icon()
@@ -183,7 +186,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
             success = await self._coordinator.async_modify_data(entity, data_val)
             if success:
                 self._attr_current_option = option
-                self._set_state = option
+                self._xcom_ram_state = option
                 self.async_write_ha_state()
     
     

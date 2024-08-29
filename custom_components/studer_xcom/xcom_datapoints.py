@@ -116,20 +116,20 @@ class XcomDatasetFactory:
 
         if voltage == "120 Vac":
             # Merge the 120v list into the 240v one by replacing duplicates. This maintains the order of menu items
-            _LOGGER.info(f"Use datapoints for 120 Vac")
-
             for dp120 in datapoints_120vac:
                 # already in result?
                 index = next( (idx for idx,dp240 in enumerate(datapoints) if dp120.nr == dp240.nr and dp120.family_id == dp240.family_id ), None)
                 if index is not None:
                     datapoints[index] = dp120
 
+            _LOGGER.info(f"Using {len(datapoints)} datapoints for 120 Vac")
+
         elif voltage == "240 Vac":
-            _LOGGER.info(f"Use datapoints for 240 Vac")
+            _LOGGER.info(f"Using {len(datapoints)} datapoints for 240 Vac")
+
         else:
             raise Exception(f"Unknown voltage: '{voltage}'")
 
-        _LOGGER.debug(f"datapoints: {len(datapoints)}")
         return XcomDataset(datapoints)
 
 

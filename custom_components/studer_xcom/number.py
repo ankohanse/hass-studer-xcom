@@ -33,8 +33,8 @@ from .const import (
     DOMAIN,
     COORDINATOR,
     MANUFACTURER,
-    ATTR_XCOM_STATE,
-    ATTR_SET_STATE,
+    ATTR_XCOM_FLASH_STATE,
+    ATTR_XCOM_RAM_STATE,
 )
 from .entity_base import (
     StuderEntityHelperFactory,
@@ -107,10 +107,10 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
     @property
     def extra_state_attributes(self) -> dict[str, str | list[str]]:
         """Return the state attributes."""
-        if self._xcom_state:
-            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
-        if self._set_state:
-            self._attributes[ATTR_SET_STATE] = self._set_state
+        if self._xcom_flash_state:
+            self._attributes[ATTR_XCOM_FLASH_STATE] = self._xcom_flash_state
+        if self._xcom_ram_state:
+            self._attributes[ATTR_XCOM_RAM_STATE] = self._xcom_ram_state
 
         return self._attributes        
     
@@ -134,6 +134,8 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         
         # Process any changes
         changed = False
+        value = entity.valueModified if entity.valueModified is not None else entity.value
+
         match entity.format:
             case FORMAT.FLOAT:
                 # Convert to float
@@ -141,7 +143,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 attr_precision = int(math.floor(math.log10(1.0 / weight)))
                 attr_min = float(entity.min) * weight if entity.min is not None else None
                 attr_max = float(entity.max) * weight if entity.max is not None else None
-                attr_val = round(float(entity.value) * weight, attr_precision) if entity.value is not None else None
+                attr_val = round(float(value) * weight, attr_precision) if value is not None else None
                 attr_step = entity.inc
 
             case FORMAT.INT32:
@@ -150,7 +152,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 attr_precision = 0
                 attr_min = int(entity.min) * weight if entity.min is not None else None
                 attr_max = int(entity.max) * weight if entity.max is not None else None
-                attr_val = int(entity.value) * weight if entity.value is not None else None
+                attr_val = int(value) * weight if entity.value is not None else None
                 attr_step = self.get_number_step()
 
             case _:
@@ -183,13 +185,13 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             changed = True
         
         # update value if it has changed
-        # Note that xcom will always return the value from flash, not the updated value in RAM
-        # Therefore we force to set the current native value to the set_native_value if it is set (in RAM),
-        # and fall back to the xcom value from flash if no set_native_value is set.
-        if is_create or self._xcom_state != attr_val:
-            self._xcom_state = attr_val
-            self._attr_native_value = self._set_state if self._set_state is not None else attr_val
-            self._attr_state = self._set_state if self._set_state is not None else attr_val
+        if is_create or self._xcom_flash_state != entity.value:
+            self._xcom_flash_state = entity.value
+            self._xcom_ram_state = entity.valueModified
+
+        if is_create or self._attr_native_value != attr_val:
+            self._attr_native_value = attr_val
+            self._attr_state = attr_val
             
             self._attr_native_unit_of_measurement = self.get_unit()
             self._attr_icon = self.get_icon()
@@ -224,7 +226,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         success = await self._coordinator.async_modify_data(entity, entity_value)
         if success:
             self._attr_native_value = value
-            self._set_state = value
+            self._xcom_ram_state = entity_value
             self.async_write_ha_state()
             _LOGGER.debug(f"after modify data for entity {entity.device_name} {entity.nr}. _set_state={self._set_state}")
 
