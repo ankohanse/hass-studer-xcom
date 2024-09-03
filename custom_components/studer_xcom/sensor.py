@@ -45,13 +45,12 @@ from .const import (
 from .coordinator import (
     StuderCoordinatorFactory,
 )
-
 from .entity_base import (
     StuderEntityHelperFactory,
     StuderEntityHelper,
     StuderEntity,
 )
-from .xcom_const import (
+from aioxcom import (
     FORMAT,
 )
 

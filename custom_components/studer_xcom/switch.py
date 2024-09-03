@@ -43,13 +43,12 @@ from .const import (
     ATTR_XCOM_FLASH_STATE,
     ATTR_XCOM_RAM_STATE,
 )
-
 from .entity_base import (
     StuderEntityHelperFactory,
     StuderEntityHelper,
     StuderEntity,
 )
-from .xcom_const import (
+from aioxcom import (
     FORMAT,
 )
 

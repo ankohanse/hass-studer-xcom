@@ -18,10 +18,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 import homeassistant.helpers.entity_registry as entity_registry
 
-
 from homeassistant.const import (
     CONF_PORT,
 )
+
 from .const import (
     DOMAIN,
     PLATFORMS,
@@ -34,17 +34,14 @@ from .const import (
     SWITCH_VALUES_OFF,
     SWITCH_VALUES_ALL,
 )
-
 from .coordinator import (
     StuderCoordinatorFactory,
     StuderCoordinator
 )
-from .xcom_const import (
-    LEVEL,
+from aioxcom import (
     FORMAT,
     OBJ_TYPE,
 )
-
 
 _LOGGER = logging.getLogger(__name__)
 

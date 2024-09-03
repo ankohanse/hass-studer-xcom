@@ -34,13 +34,12 @@ from .const import (
     COORDINATOR,
     MANUFACTURER,
 )
-
 from .entity_base import (
     StuderEntityHelperFactory,
     StuderEntityHelper,
     StuderEntity,
 )
-from .xcom_const import (
+from aioxcom import (
     FORMAT,
 )
 

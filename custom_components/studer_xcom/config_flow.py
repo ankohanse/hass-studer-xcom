@@ -32,6 +32,7 @@ from .const import (
     DEFAULT_VOLTAGE,
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
+    DEFAULT_FAMILY_NUMBERS,
     VOLTAGE_120VAC,
     VOLTAGE_240VAC,
 )
@@ -39,16 +40,11 @@ from .coordinator import (
     StuderCoordinatorFactory,
     StuderDeviceConfig,
 )
-from .xcom_const import (
+from aioxcom import (
     LEVEL,
     OBJ_TYPE,
-)
-from .xcom_datapoints import (
-    XcomDatasetFactory,
     XcomDataset,
     XcomDatapointUnknownException,
-)
-from .xcom_families import (
     XcomDeviceFamilies,
     XcomDeviceFamily,
 )
@@ -266,7 +262,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             address = device_addr,
                             code = device_code,
                             family_id = family.id,
-                            numbers = device_old.numbers if device_old else family.nrDefaults
+                            numbers = device_old.numbers if device_old else DEFAULT_FAMILY_NUMBERS[family.id]
                         ))
                     else:
                         # Do not test further device addresses in this family
@@ -293,7 +289,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_xcom_device_test(self, nr, family_id, addr):
         if not self._dataset:
-            self._dataset = XcomDatasetFactory.create(self._voltage)
+            self._dataset = XcomDataset.create(self._voltage)
 
         param = self._dataset.getByNr(nr, family_id)
 
@@ -324,7 +320,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         Step 3: specify params and infos numbers for each device
         """
         if not self._dataset:
-            self._dataset = XcomDatasetFactory.create(self._voltage)
+            self._dataset = XcomDataset.create(self._voltage)
 
         if user_input is not None:
             # Get form data

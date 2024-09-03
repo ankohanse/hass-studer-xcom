@@ -33,7 +33,6 @@ from datetime import datetime
 from collections import defaultdict
 from collections import namedtuple
 
-
 from .const import (
     DOMAIN,
     COORDINATOR,
@@ -52,12 +51,11 @@ from .entity_base import (
     StuderEntityHelperFactory,
     StuderEntity,
 )
-from .xcom_const import (
+
+from aioxcom import (
     FORMAT,
 )
-from .xcom_families import (
-    XcomDeviceFamilies,
-)
+
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -41,7 +41,7 @@ from .entity_base import (
     StuderEntityHelper,
     StuderEntity,
 )
-from .xcom_const import (
+from aioxcom import (
     FORMAT
 )
 

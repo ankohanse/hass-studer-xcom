@@ -1,9 +1,10 @@
 {
     "python.analysis.extraPaths": [
-        "D:\\projects\\hass-core",
-        "D:\\projects\\hass-dependencies\\async-timeout",
-        "D:\\projects\\hass-dependencies\\httpx",
-        "D:\\projects\\hass-dependencies\\pyjwt",
-        "D:\\projects\\hass-dependencies\\voluptuous",
+        "D:\\Projects\\hass-core",
+        "D:\\Projects\\hass-dependencies\\async-timeout",
+        "D:\\Projects\\hass-dependencies\\httpx",
+        "D:\\Projects\\hass-dependencies\\pyjwt",
+        "D:\\Projects\\hass-dependencies\\voluptuous",
+        "D:\\Projects\\hass-aioxcom\\src",
     ]
 }

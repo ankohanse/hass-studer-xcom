@@ -26,29 +26,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .const import (
-    DIAGNOSTICS_REDACT,
-)
-from .xcom_api import (
-    XcomAPi,
-    XcomApiWriteException,
-    XcomApiReadException,
-    XcomApiTimeoutException,
-    XcomApiResponseIsError,
-    XcomApiUnpackException,
-)
-from .xcom_datapoints import (
-    XcomDatasetFactory,
-    XcomDataset,
-    XcomDatapoint,
-    XcomDatapointUnknownException,
-)
-from .xcom_families import (
-    XcomDeviceFamily,
-    XcomDeviceFamilies,
-    XcomDeviceFamilyUnknownException,
-)
-
 from homeassistant.const import (
     CONF_PORT, 
     CONF_DEVICES,
@@ -65,6 +42,20 @@ from .const import (
     DEFAULT_VOLTAGE,
     DEFAULT_PORT,
     DEFAULT_POLLING_INTERVAL,
+)
+from aioxcom import (
+    XcomApiTcp,
+    XcomApiWriteException,
+    XcomApiReadException,
+    XcomApiTimeoutException,
+    XcomApiResponseIsError,
+    XcomApiUnpackException,
+    XcomDataset,
+    XcomDatapoint,
+    XcomDatapointUnknownException,
+    XcomDeviceFamily,
+    XcomDeviceFamilies,
+    XcomDeviceFamilyUnknownException,
 )
 
 
@@ -216,7 +207,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
         self._options: dict[str,Any] = options
 
-        self._api = XcomAPi(self._port)
+        self._api = XcomApiTcp(self._port)
 
         self._install_id = StuderCoordinator.create_id(self._port)
         self._entity_map: dict[str,StuderEntity] = self._create_entity_map()
@@ -270,7 +261,7 @@ class StuderCoordinator(DataUpdateCoordinator):
     def _create_entity_map(self):
         entity_map: dict[str,StuderEntity] = {}
 
-        dataset = XcomDatasetFactory.create(self._voltage)
+        dataset = XcomDataset.create(self._voltage)
 
         for device in self._devices:
             family = XcomDeviceFamilies.getById(device.family_id)
