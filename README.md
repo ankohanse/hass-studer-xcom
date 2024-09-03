@@ -1,5 +1,5 @@
 [![version](https://img.shields.io/github/v/release/ankohanse/hass-studer-xcom?style=for-the-badge)](https://github.com/ankohanse/hass-studer-xcom)
-[![maintained](https://img.shields.io/maintenance/yes/2024?style=for-the-badge)](https://github.com/ankohanse/hass-dab-pumpsstuder-xcom)
+[![maintained](https://img.shields.io/maintenance/yes/2024?style=for-the-badge)](https://github.com/ankohanse/hass-studer-xcom)
 [![license](https://img.shields.io/github/license/toreamun/amshan-homeassistant?style=for-the-badge)](LICENSE)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)<br/>
 [![buy_me_a_coffee](https://img.shields.io/badge/If%20you%20like%20it-Buy%20me%20a%20coffee-yellow.svg?style=for-the-badge)](https://www.buymeacoffee.com/ankohanse)
@@ -86,6 +86,7 @@ Copying all files in `/custom_components/studer_xcom/` folder from this repo int
     │   │   └── en.json
     │   ├── __init__.py
     │   ├── binary_sensor.py
+    │   ├── button.py
     │   ├── config_flow.py
     │   ├── const.py
     │   ├── coordinator.py
@@ -96,13 +97,7 @@ Copying all files in `/custom_components/studer_xcom/` folder from this repo int
     │   ├── select.py
     │   ├── sensor.py
     │   ├── strings.json
-    │   ├── switch.py
-    │   ├── xcom_api.py
-    │   ├── xcom_const.py
-    │   ├── xcom_datapoints.json
-    │   ├── xcom_datapoints.py
-    │   ├── xcom_families.py
-    │   └── xcom_protocol.py  
+    │   └── switch.py
     ```
 
 2. Restart Home Assistant.
