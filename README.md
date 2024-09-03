@@ -136,8 +136,8 @@ This is a fully automatic step, no user input needed.
 
 Choose the params and info numbers you want for each detected device.
 
-A full list of available numbers can be found in the files of this integration: 
-- custom_components/studer_xcom/xcom_datapoints.json
+A full list of available numbers can be found in the library used by this integration: 
+- [aioxcom/xcom_datapoints_240v.json](https://github.com/ankohanse/aioxcom/blob/master/src/aioxcom/xcom_datapoints_240v.json)
 
 Or it can be downloaded from Studer-Innotec:
 - Open [www.studer-innotec.com](https://www.studer-innotec.com) in a browser
@@ -145,10 +145,12 @@ Or it can be downloaded from Studer-Innotec:
 - In the downloaded zip open file 'Technical specification - Xtender serial protocol appendix - 1.6.38.pdf'
 
 Restrict yourself to only those parameters you actually use and try to keep the time needed for fetching Studer Xcom data below 20 seconds. While in debug mode (see below), keep an eye on the log (Settings -> System -> Log -> Load Full Logs ),
-and search for a like looking like:
+and search for lines looking like:
 
 `2024-08-26 09:57:46.383 DEBUG (MainThread) [custom_components.studer_xcom.coordinator] Finished fetching Studer Xcom data in 1.450 seconds (success: True)`
-  
+
+Note: the first data retrieval after a restart will always take longer than subsequent data retrievals.
+
 ![setup_step_3](documentation/setup_numbers.png)
 
 ## Step 4 - Finish
