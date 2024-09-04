@@ -73,9 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     # Get  our Coordinator instance for this port and start it
     coordinator: StuderCoordinator = StuderCoordinatorFactory.create(hass, config_entry)
-    await coordinator.start()
-    
-    if not await coordinator.wait_until_connected():
+    if not await coordinator.start():
         raise ConfigEntryNotReady(f"Timout while waiting for Studer Xcom client to connect to our port {port}.")
     
     # Fetch initial data so we have data when entities subscribe

@@ -229,31 +229,17 @@ class StuderCoordinator(DataUpdateCoordinator):
         return self._entity_map
 
 
-    async def start(self):
+    async def start(self) -> bool:
         self._modified_map = await self._async_fetch_from_cache(MODIFIED_PARAMS)
         self._modified_map_ts = datetime.now()
 
-        await self._api.start()
+        return await self._api.start()
 
     
     async def stop(self):
         await self._api.stop()
 
     
-    async def wait_until_connected(self, timeout=20) -> bool:
-        try:
-            for i in range(timeout):
-                if self._api.connected:
-                    return True
-                
-                await asyncio.sleep(1)
-
-        except Exception as e:
-            _LOGGER.warning(f"Exception while checking connection to Xcom client: {e}")
-
-        return False
-    
-
     def is_connected(self) -> bool:
         return self._api.connected
 
@@ -312,9 +298,6 @@ class StuderCoordinator(DataUpdateCoordinator):
         _LOGGER.debug(f"Update data")
 
         try:
-            if not await self.wait_until_connected():
-                return
-            
             # Request values for each configured param or infos number (datapoints). 
             # Note that a single (broadcasted) request can result in multiple reponses received 
             # (for instance in systems with more than one inverter)

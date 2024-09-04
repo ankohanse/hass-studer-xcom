@@ -210,8 +210,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.info("Discover Xcom connection")
             self._coordinator = StuderCoordinatorFactory.create_temp(self._voltage, self._port)
 
-            await self._coordinator.start()
-            if not await self._coordinator.wait_until_connected(30):
+            if not await self._coordinator.start(30):
                 self._errors[CONF_PORT] = f"Xcom client did not connect to the specified port"
                 return
 
@@ -252,7 +251,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     # - the device does not support the param (INVALID_DATA), used to distinguish BSP from BMS
                     success = await self._async_xcom_device_test(nr, family.idForNr, device_addr)
                     if success:
-                        device_code = family.get_code(device_addr)
+                        device_code = family.getCode(device_addr)
                         _LOGGER.info(f"Found device {device_code} via {nr}:{device_addr}")
 
                         # In reconfigure, did we already have a deviceConfig for this device?
