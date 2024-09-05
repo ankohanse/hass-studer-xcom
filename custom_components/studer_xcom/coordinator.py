@@ -341,7 +341,7 @@ class StuderCoordinator(DataUpdateCoordinator):
     async def async_request_test(self, param, addr):
         try:
             value = await self._api.requestValue(param, addr)
-            if value:
+            if value is not None:
                 return True
             
         except Exception as e:
