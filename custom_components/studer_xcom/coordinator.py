@@ -50,6 +50,7 @@ from aioxcom import (
     XcomApiTimeoutException,
     XcomApiResponseIsError,
     XcomApiUnpackException,
+    XcomDiscoveredDevice,
     XcomDataset,
     XcomDatapoint,
     XcomDatapointUnknownException,
@@ -64,28 +65,46 @@ _LOGGER = logging.getLogger(__name__)
 MODIFIED_PARAMS = "ModifiedParams"
 
 
-class StuderDeviceConfig:
-    def __init__(self, address, code, family_id, numbers):
-        self.address = address
+class StuderDeviceConfig(XcomDiscoveredDevice):
+    def __init__(self, code, address, family_id, family_model, device_model, hw_version, sw_version, fid, numbers):
+        # From XcomDiscoveredDevice
         self.code = code
+        self.address = address
         self.family_id = family_id
+        self.family_model = family_model
+        self.device_model = device_model
+        self.hw_version = hw_version
+        self.sw_version = sw_version
+        self.fid = fid
+
+        # For StuderDeviceConfig
         self.numbers = numbers
 
     @staticmethod
     def from_dict(d: dict[str,Any]):
         return StuderDeviceConfig(
-            d["address"],
             d["code"],
+            d["address"],
             d["family_id"],
+            d["family_model"],
+            d["device_model"],
+            d["hw_version"],
+            d["sw_version"],
+            d["fid"],
             d["numbers"],
         )
 
     def as_dict(self) -> dict[str, Any]:
         """Return dictionary version of this device config."""
         return {
-            "address": self.address,
             "code": self.code,
+            "address": self.address,
             "family_id": self.family_id,
+            "family_model": self.family_model,
+            "device_model": self.device_model,
+            "hw_version": self.hw_version,
+            "sw_version": self.sw_version,
+            "fid": self.fid,
             "numbers": self.numbers,
         }
     
@@ -96,8 +115,8 @@ class StuderDeviceConfig:
         return self.__str__()
 
 
-class StuderEntity(XcomDatapoint):
-    def __init__(self, param, object_id, unique_id, device_id, device_name, device_addr, device_model):
+class StuderEntityData(XcomDatapoint):
+    def __init__(self, param, object_id, unique_id, device_id, device_name, device_addr, device_model, device_hw, device_sw, device_fid):
         # from XcomDatapoint
         self.family_id = param.family_id
         self.level = param.level
@@ -113,7 +132,7 @@ class StuderEntity(XcomDatapoint):
         self.inc = param.inc
         self.options = param.options
 
-        # for StuderEntity
+        # for StuderEntityData
         self.object_id = object_id
         self.unique_id = unique_id
         self.weight = 1
@@ -124,6 +143,9 @@ class StuderEntity(XcomDatapoint):
         self.device_addr = device_addr
         self.device_name = device_name
         self.device_model = device_model
+        self.device_hw = device_hw
+        self.device_sw = device_sw
+        self.device_fid = device_fid
 
 
 class StuderCoordinatorFactory:
@@ -210,7 +232,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._api = XcomApiTcp(self._port)
 
         self._install_id = StuderCoordinator.create_id(self._port)
-        self._entity_map: dict[str,StuderEntity] = self._create_entity_map()
+        self._entity_map: dict[str,StuderEntityData] = self._create_entity_map()
         self._entity_map_ts = datetime.now()
         self.data = self._get_data()
 
@@ -245,7 +267,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
 
     def _create_entity_map(self):
-        entity_map: dict[str,StuderEntity] = {}
+        entity_map: dict[str,StuderEntityData] = {}
 
         dataset = XcomDataset.create(self._voltage)
 
@@ -265,11 +287,11 @@ class StuderCoordinator(DataUpdateCoordinator):
         return entity_map
     
 
-    def _create_entity(self, param: XcomDatapoint, family: XcomDeviceFamily, device: StuderDeviceConfig) -> StuderEntity | None:
+    def _create_entity(self, param: XcomDatapoint, family: XcomDeviceFamily, device: StuderDeviceConfig) -> StuderEntityData | None:
     
         try:
             # Store all properties for easy lookup by entities
-            entity = StuderEntity(
+            entity = StuderEntityData(
                 param = param,
 
                 object_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code, param.nr),
@@ -279,7 +301,10 @@ class StuderCoordinator(DataUpdateCoordinator):
                 device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code),
                 device_name = f"{PREFIX_NAME} {device.code}",
                 device_addr = device.address,
-                device_model = family.model,
+                device_model = f"{family.model} {device.device_model or ''}",
+                device_hw = device.hw_version,
+                device_sw = device.sw_version,
+                device_fid = device.fid,
             )
             return entity
         
@@ -338,19 +363,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 await self._addDiagnostic(diag_key, False, e)
 
     
-    async def async_request_test(self, param, addr):
-        try:
-            value = await self._api.requestValue(param, addr)
-            if value is not None:
-                return True
-            
-        except Exception as e:
-            _LOGGER.debug(f"Failed to request test value from Xcom client: {e}")
-
-        return False
-    
-
-    async def async_modify_data(self, entity: StuderEntity, value):
+    async def async_modify_data(self, entity: StuderEntityData, value):
 
         diag_key = f"UpdateValue {entity.device_name} {entity.level}"
         modify_key = f"UpdateValue {entity.device_name} {entity.nr}"
@@ -423,11 +436,11 @@ class StuderCoordinator(DataUpdateCoordinator):
         return data
     
 
-    def _getModified(self, entity: StuderEntity) -> Any:
+    def _getModified(self, entity: StuderEntityData) -> Any:
         return self._modified_map.get(entity.object_id, None)
 
 
-    async def _addModified(self, entity: StuderEntity, value: Any):
+    async def _addModified(self, entity: StuderEntityData, value: Any):
         """
         Remember a modified params value. Persist it in cache.
         """

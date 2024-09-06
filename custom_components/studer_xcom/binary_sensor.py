@@ -181,6 +181,9 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
                name = entity.device_name,
                model = entity.device_model,
                manufacturer =  MANUFACTURER,
+               hw_version = entity.device_hw,
+               sw_version = entity.device_sw,
+               serial_number = entity.device_fid,
             )
             changed = True
         

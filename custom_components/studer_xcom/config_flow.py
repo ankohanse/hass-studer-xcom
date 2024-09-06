@@ -43,6 +43,7 @@ from .coordinator import (
 from aioxcom import (
     LEVEL,
     OBJ_TYPE,
+    XcomDiscover,
     XcomDataset,
     XcomDatapointUnknownException,
     XcomDeviceFamilies,
@@ -210,7 +211,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.info("Discover Xcom connection")
             self._coordinator = StuderCoordinatorFactory.create_temp(self._voltage, self._port)
 
-            if not await self._coordinator.start(30):
+            if not await self._coordinator.start():
                 self._errors[CONF_PORT] = f"Xcom client did not connect to the specified port"
                 return
 
@@ -233,45 +234,31 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             _LOGGER.info("Discover Xcom devices")
             
-            devices: list[StuderDeviceConfig] = []
-            families = XcomDeviceFamilies.getList()
-            family_percent = 100.0 / (len(families)+1)
+            if not self._dataset:
+                self._dataset = XcomDataset.create(self._voltage)
 
-            for family in families:
-                # Get value for the specific discovery nr, or otherwise the first info nr or first param nr
-                nr = family.nrDiscover or family.nrInfosStart or family.nrParamsStart or None
-                if not nr:
-                    continue
-
-                # Iterate all addresses in the family, up to the first address that is not found
-                for device_addr in range(family.addrDevicesStart, family.addrDevicesEnd+1):
-
-                    # Send the test request to the device. This will return False in case:
-                    # - the device does not exist (DEVICE_NOT_FOUND)
-                    # - the device does not support the param (INVALID_DATA), used to distinguish BSP from BMS
-                    success = await self._async_xcom_device_test(nr, family.idForNr, device_addr)
-                    if success:
-                        device_code = family.getCode(device_addr)
-                        _LOGGER.info(f"Found device {device_code} via {nr}:{device_addr}")
-
-                        # In reconfigure, did we already have a deviceConfig for this device?
-                        device_old = next((d for d in self._devices if d.address == device_addr), None)
-
-                        devices.append(StuderDeviceConfig(
-                            address = device_addr,
-                            code = device_code,
-                            family_id = family.id,
-                            numbers = device_old.numbers if device_old else DEFAULT_FAMILY_NUMBERS[family.id]
-                        ))
-                    else:
-                        # Do not test further device addresses in this family
-                        break
-
+            helper = XcomDiscover(self._coordinator._api, self._dataset)
+            devices = await helper.discoverDevices(extended = True)
             if not devices:
                 self._errors[CONF_PORT] = f"No Studer devices found via Xcom client"
                 return
             
-            self._devices = devices
+            self._devices = []
+            for device in devices:
+                # In reconfigure, did we already have a deviceConfig for this device?
+                device_old = next((d for d in self._devices if d.address == device.addr), None)
+
+                self._devices.append(StuderDeviceConfig(
+                    code = device.code,
+                    address = device.addr,
+                    family_id = device.family_id,
+                    family_model = device.family_model,
+                    device_model = device.device_model,
+                    hw_version = device.hw_version,
+                    sw_version = device.sw_version,
+                    fid = device.fid,
+                    numbers = device_old.numbers if device_old else DEFAULT_FAMILY_NUMBERS[device.family_id]                      
+                ))
                 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
@@ -284,15 +271,6 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
             )
-
-
-    async def _async_xcom_device_test(self, nr, family_id, addr):
-        if not self._dataset:
-            self._dataset = XcomDataset.create(self._voltage)
-
-        param = self._dataset.getByNr(nr, family_id)
-
-        return await self._coordinator.async_request_test(param, addr)
 
 
     async def _async_xcom_disconnect(self, is_task=True):
