@@ -235,7 +235,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.info("Discover Xcom devices")
             
             if not self._dataset:
-                self._dataset = XcomDataset.create(self._voltage)
+                self._dataset = await XcomDataset.create(self._voltage)
 
             helper = XcomDiscover(self._coordinator._api, self._dataset)
             devices = await helper.discoverDevices(extended = True)
@@ -297,7 +297,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         Step 3: specify params and infos numbers for each device
         """
         if not self._dataset:
-            self._dataset = XcomDataset.create(self._voltage)
+            self._dataset = await XcomDataset.create(self._voltage)
 
         if user_input is not None:
             # Get form data

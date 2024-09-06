@@ -232,7 +232,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._api = XcomApiTcp(self._port)
 
         self._install_id = StuderCoordinator.create_id(self._port)
-        self._entity_map: dict[str,StuderEntityData] = self._create_entity_map()
+        self._entity_map: dict[str,StuderEntityData] = {}
         self._entity_map_ts = datetime.now()
         self.data = self._get_data()
 
@@ -252,6 +252,9 @@ class StuderCoordinator(DataUpdateCoordinator):
 
 
     async def start(self) -> bool:
+        self._entity_map: dict[str,StuderEntityData] = await self._create_entity_map()
+        self._entity_map_ts = datetime.now()
+        
         self._modified_map = await self._async_fetch_from_cache(MODIFIED_PARAMS)
         self._modified_map_ts = datetime.now()
 
@@ -266,10 +269,10 @@ class StuderCoordinator(DataUpdateCoordinator):
         return self._api.connected
 
 
-    def _create_entity_map(self):
+    async def _create_entity_map(self):
         entity_map: dict[str,StuderEntityData] = {}
 
-        dataset = XcomDataset.create(self._voltage)
+        dataset = await XcomDataset.create(self._voltage)
 
         for device in self._devices:
             family = XcomDeviceFamilies.getById(device.family_id)
