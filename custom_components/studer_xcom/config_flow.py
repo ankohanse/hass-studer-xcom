@@ -238,7 +238,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self._dataset = await XcomDataset.create(self._voltage)
 
             helper = XcomDiscover(self._coordinator._api, self._dataset)
-            devices = await helper.discoverDevices(extended = True)
+            devices = await helper.discoverDevices(getExtendedInfo = True)
             if not devices:
                 self._errors[CONF_PORT] = f"No Studer devices found via Xcom client"
                 return
