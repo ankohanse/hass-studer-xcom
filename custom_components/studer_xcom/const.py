@@ -85,5 +85,11 @@ SWITCH_VALUES_ON = [1, True, '1', 'On']
 SWITCH_VALUES_OFF = [0, False, '0', 'Off']
 SWITCH_VALUES_ALL = SWITCH_VALUES_ON + SWITCH_VALUES_OFF
 
+# Request retries
+REQ_TIMEOUT = 3
+REQ_RETRIES = 3
+
 # Diagnostics
 DIAGNOSTICS_REDACT = { 'conf_secret1', 'conf_secret2' }
+DIAG_REQ_KEY = "requests"
+DIAG_STAT_KEY = "statistics"

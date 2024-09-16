@@ -42,6 +42,10 @@ from .const import (
     DEFAULT_VOLTAGE,
     DEFAULT_PORT,
     DEFAULT_POLLING_INTERVAL,
+    REQ_RETRIES,
+    REQ_TIMEOUT,
+    DIAG_REQ_KEY,
+    DIAG_STAT_KEY,
 )
 from aioxcom import (
     XcomApiTcp,
@@ -244,7 +248,10 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._modified_map_ts = datetime.now()
         
         # Diagnostics gathering
-        self._diagnostics = {}
+        self._diagnostics = {
+            DIAG_REQ_KEY: {},
+            DIAG_STAT_KEY: {},
+        }
 
 
     def _get_data(self):
@@ -345,14 +352,14 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         Send out requests to the remote Xcom client for each configured parameter or infos number.
         """
-        for entity in self._entity_map.values():
+        for i, entity in enumerate(self._entity_map.values()):
 
             diag_key = f"RequestValue {entity.device_name} {entity.level}"
             try:
                 param = entity
                 addr = entity.device_addr
             
-                value = await self._api.requestValue(param, addr)
+                value = await self._api.requestValue(param, addr, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
                 if value is not None:
                     self._entity_map[entity.object_id].value = value
                     self._entity_map[entity.object_id].valueModified = self._getModified(entity)
@@ -364,6 +371,11 @@ class StuderCoordinator(DataUpdateCoordinator):
                 if e is not XcomApiTimeoutException:
                     _LOGGER.warning(f"Failed to request value {entity.device_name} {entity.nr} from Xcom client: {e}")
                 await self._addDiagnostic(diag_key, False, e)
+
+            # Periodically wait for a second. This will make sure we do not block Xcom-LAN with
+            # too many requests at once and prevent it from uploading data to the Studer portal.
+            if i % 10 == 0:
+                await asyncio.sleep(1)
 
     
     async def async_modify_data(self, entity: StuderEntityData, value):
@@ -457,48 +469,58 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         Add a diagnostics statistic
         """
-        diag_data = self._diagnostics.get(diag_key, None)
-        if not diag_data:
-            diag_data = {
-                "counters": {
-                    "success": 0,
-                    "fail_write": 0,
-                    "fail_read": 0,
-                    "fail_timout": 0,
-                    "fail_error": 0,
-                    "fail_unpack": 0,
-                    "fail_other": 0,
-                },
-                "last_errors": [],
-                "last_error_ts": None,
+        diag_base = {
+            "counters": {
+                "success": 0,
+                "fail_write": 0,
+                "fail_read": 0,
+                "fail_timout": 0,
+                "fail_error": 0,
+                "fail_unpack": 0,
+                "fail_other": 0,
+            },
+            "errors": {
+                "last": [],
+                "last_ts": None,
             }
+        }
+        stat_base = {
+            "time": {
+                "fail_hours": { h: 0 for h in range(0,24) },
+                "fail_minutes": { m: 0 for m in range(0, 60, 5)},
+            },
+        }
+        diag_data = diag_base | self._diagnostics.get(DIAG_REQ_KEY, {}).get(diag_key, {})
+        stat_data = stat_base | self._diagnostics.get(DIAG_STAT_KEY, {})
+        ts = datetime.now()
 
+        # Update per request diagnostics
         if success:
             diag_data["counters"]["success"] += 1
         else:
-            if not e:
-                diag_data["counters"]["fail_other"] += 1
-            elif e is XcomApiWriteException:
-                diag_data["counters"]["fail_write"] += 1
-            elif e is XcomApiReadException:
-                diag_data["counters"]["fail_read"] += 1
-            elif e is XcomApiTimeoutException:
-                diag_data["counters"]["fail_timeout"] += 1
-            elif e is XcomApiResponseIsError:
-                diag_data["counters"]["fail_error"] += 1
-            elif e is XcomApiUnpackException:
-                diag_data["counters"]["fail_unpack"] += 1
-            else:
-                diag_data["counters"]["fail_other"] += 1
+            if not e:                          diag_data["counters"]["fail_other"] += 1
+            elif e is XcomApiWriteException:   diag_data["counters"]["fail_write"] += 1
+            elif e is XcomApiReadException:    diag_data["counters"]["fail_read"] += 1
+            elif e is XcomApiTimeoutException: diag_data["counters"]["fail_timeout"] += 1
+            elif e is XcomApiResponseIsError:  diag_data["counters"]["fail_error"] += 1
+            elif e is XcomApiUnpackException:  diag_data["counters"]["fail_unpack"] += 1
+            else:                              diag_data["counters"]["fail_other"] += 1
 
             if e:
-                diag_data["last_error_ts"] = str(datetime.now())
-                diag_data["last_errors"].append(str(e))
+                diag_data["errors"]["last_ts"] = str(ts)
+                diag_data["errors"]["last"].append(str(e))
 
-                while len(diag_data["last_errors"]) > 16:
-                    diag_data["last_errors"].pop(0)
+                while len(diag_data["errors"]["last"]) > 16:
+                    diag_data["errors"]["last"].pop(0)
 
-        self._diagnostics[diag_key] = diag_data
+        # Update overal statistics diagnostics
+        if not success:
+            stat_data["time"]["fail_hours"][ts.hour] += 1
+            stat_data["time"]["fail_minutes"][ts.minute // 5 * 5] += 1
+
+        # Remember these new values          
+        self._diagnostics[DIAG_REQ_KEY][diag_key] = diag_data
+        self._diagnostics[DIAG_STAT_KEY] = stat_data
 
     
     async def async_get_diagnostics(self) -> dict[str, Any]:
