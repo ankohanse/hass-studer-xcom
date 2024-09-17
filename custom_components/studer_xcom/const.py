@@ -60,6 +60,7 @@ CONF_VOLTAGE = "voltage"
 CONF_USER_LEVEL = "user_level"
 CONF_OPTIONS = "options"
 CONF_POLLING_INTERVAL = "polling_interval"
+CONF_WEBCONFIG_URL = "webconfig_url"
 
 #Entity configuration
 CONF_NR = "nr"

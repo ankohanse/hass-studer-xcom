@@ -8,7 +8,7 @@
           "port": "Port"
         },
         "data_description": {
-          "port": "Use the port as set on the Xcom client"
+          "port": "Use the port as set in the Xcom Moxa Web Config"
         }
       },
       "progress": {
@@ -67,12 +67,13 @@
         }
       },
       "finish": {
-        "description": "Finished configuration.\nPress the submit button to create the integration's entities and devices."
+        "description": "Finished configuration. \nPress the submit button to create the integration's entities and devices."
       }
     },
     "progress": {
       "description": "Xcom discovery - {percent}%",
       "xcom_connect": "Connect to Xcom client",
+      "xcom_webconfig": "Searching Xcom Moxa Web Config",
       "xcom_devices": "Searching Studer devices",
       "xcom_disconnect": "Disconnect from Xcom client"
     },

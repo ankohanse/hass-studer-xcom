@@ -29,6 +29,7 @@ from .const import (
     CONF_VOLTAGE,
     CONF_USER_LEVEL,
     CONF_POLLING_INTERVAL,
+    CONF_WEBCONFIG_URL,
     DEFAULT_VOLTAGE,
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
@@ -64,6 +65,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._voltage: str = DEFAULT_VOLTAGE
         self._port: int = DEFAULT_PORT
         self._user_level: str = DEFAULT_USER_LEVEL
+        self._webconfig_url: str = None
         self._devices: list[StuderDeviceConfig] = []
         self._numbers: list[str] = []
         self._errors: dict[str,str] = {}
@@ -98,6 +100,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._voltage = self._reconfig_entry.data.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
         self._port = self._reconfig_entry.data.get(CONF_PORT, DEFAULT_PORT)
         self._user_level = self._reconfig_entry.data.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
+
+        self._webconfig_url = self._reconfig_entry.data.get(CONF_WEBCONFIG_URL, "")
         devices_data = self._reconfig_entry.data.get(CONF_DEVICES, [])
 
         self._devices = [StuderDeviceConfig.from_dict(device) for device in devices_data]
@@ -154,13 +158,18 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         Step 2: discover reachable Xcom devices
         """
         if self._errors:
-            _LOGGER.debug(f"Step xcom_discover - revert to port input form")
-            self._progress_tasks = []
+            if CONF_PORT in self._errors and not CONF_WEBCONFIG_URL in self._errors:
+                # special case, allow to continue to xcom_webconfig step
+                pass
+            else:
+                _LOGGER.debug(f"Step xcom_discover - revert to port input form")
+                self._progress_tasks = []
 
-            return self.async_show_progress_done(next_step_id = "client")
+                return self.async_show_progress_done(next_step_id = "client")
 
         progress_steps = [ # (percent, action, function)
             (0,   "xcom_connect",    self._async_xcom_connect),
+            (30,  "xcom_webconfig",  self._async_xcom_webconfig),
             (50,  "xcom_devices",    self._async_xcom_devices),
             (100, "xcom_disconnect", self._async_xcom_disconnect),
         ]
@@ -211,17 +220,55 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.info("Discover Xcom connection")
             self._coordinator = StuderCoordinatorFactory.create_temp(self._voltage, self._port)
 
-            if not await self._coordinator.start():
-                self._errors[CONF_PORT] = f"Xcom client did not connect to the specified port"
-                return
+            if await self._coordinator.start():
+                _LOGGER.info("Xcom client connected")
+            else:
+                _LOGGER.info(f"Xcom client did not connect to the specified port.")
+                self._errors[CONF_PORT] = f"Xcom client did not connect to the specified port."
 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
             self._errors[CONF_PORT] = f"Unknown error: {e}"
-        
-            await self._async_xcom_disconnect(is_task=False)
 
         finally:
+            # Cleanup
+            if CONF_PORT in self._errors:
+                await self._async_xcom_disconnect(is_task=False)
+
+            # Ensure we go back to the flow
+            self.hass.async_create_task(
+                self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
+            )
+
+    
+    async def _async_xcom_webconfig(self):
+        """Try to (re-)discover the url for the Xcom Web Config so we can give a better error hint"""
+
+        try:
+            # This step is only needed if connection to the Xcom client via the configured port failed.
+            if not CONF_PORT in self._errors:
+                return
+                
+            _LOGGER.info("Discover Xcom Moxa Web Config")
+            self._webconfig_url = await XcomDiscover.discoverMoxaWebConfig(self._webconfig_url)
+            if self._webconfig_url:
+                _LOGGER.info("Discovered Xcom Moxa Web Config at {self._webconfig_url}")
+
+                self._errors[CONF_PORT] = f"Xcom client did not connect. \nMake sure Home Assistant IP address and port are configured via XCom Moxy Web Config on {self._webconfig_url}"
+            else:
+                _LOGGER.info("Could not determine Xcom Moxa Web Config url")
+
+            self._errors[CONF_WEBCONFIG_URL] = f"xcom_webconfig done" # Dummy error that is misused to indicate we passed through this step
+
+        except Exception as e:
+            _LOGGER.warning(f"Exception during discover of Xcom Moxa Web Config: {e}")
+            self._errors[CONF_WEBCONFIG_URL] = f"Unknown error: {e}"
+        
+        finally:
+            # Cleanup
+            if CONF_PORT in self._errors:
+                await self._async_xcom_disconnect(is_task=False)
+
             # Ensure we go back to the flow
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
@@ -396,6 +443,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_VOLTAGE: self._voltage,
                 CONF_PORT: self._port,
                 CONF_USER_LEVEL: self._user_level,
+                CONF_WEBCONFIG_URL: self._webconfig_url,
                 CONF_DEVICES: [device.as_dict() for device in self._devices],
             }
             options = {
