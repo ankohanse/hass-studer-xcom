@@ -21,6 +21,7 @@ from homeassistant.core import callback
 from homeassistant.core import HomeAssistant
 from homeassistant.core import async_get_hass
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -35,6 +36,7 @@ from homeassistant.const import (
 from .const import (
     DOMAIN,
     NAME,
+    MANUFACTURER,
     COORDINATOR,
     PREFIX_ID,
     PREFIX_NAME,
@@ -120,7 +122,7 @@ class StuderDeviceConfig(XcomDiscoveredDevice):
 
 
 class StuderEntityData(XcomDatapoint):
-    def __init__(self, param, object_id, unique_id, device_id, device_name, device_addr, device_model, device_hw, device_sw, device_fid):
+    def __init__(self, param, object_id, unique_id, device_id, device_code, device_addr):
         # from XcomDatapoint
         self.family_id = param.family_id
         self.level = param.level
@@ -144,12 +146,8 @@ class StuderEntityData(XcomDatapoint):
         self.valueModified = None
 
         self.device_id = device_id
+        self.device_code = device_code
         self.device_addr = device_addr
-        self.device_name = device_name
-        self.device_model = device_model
-        self.device_hw = device_hw
-        self.device_sw = device_sw
-        self.device_fid = device_fid
 
 
 class StuderCoordinatorFactory:
@@ -286,8 +284,8 @@ class StuderCoordinator(DataUpdateCoordinator):
                 try:
                     param = dataset.getByNr(nr, family.idForNr)
                     entity = self._create_entity(param, family, device)
-
-                    entity_map[entity.object_id] = entity
+                    if entity:
+                        entity_map[entity.object_id] = entity
 
                 except Exception as e:
                     _LOGGER.debug(f"Exception in _create_entity_map: {e}")
@@ -307,12 +305,8 @@ class StuderCoordinator(DataUpdateCoordinator):
 
                 # Device associated with this entity
                 device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code),
-                device_name = f"{PREFIX_NAME} {device.code}",
+                device_code = device.code,
                 device_addr = device.address,
-                device_model = f"{family.model} {device.device_model or ''}",
-                device_hw = device.hw_version,
-                device_sw = device.sw_version,
-                device_fid = device.fid,
             )
             return entity
         
@@ -320,6 +314,31 @@ class StuderCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(f"Exception in _create_entity: {e}")
             return None
         
+
+    async def async_create_devices(self, config_entry: ConfigEntry):
+       """
+       Add all detected devices to the hass device_registry
+       """
+       _LOGGER.debug(f"Create devices")
+       dr = device_registry.async_get(self.hass)
+       
+       for device in self._devices:
+            family = XcomDeviceFamilies.getById(device.family_id)
+            device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code)
+
+            _LOGGER.debug(f"Create device {device_id}")
+
+            dr.async_get_or_create(
+                config_entry_id = config_entry.entry_id,
+                identifiers = {(DOMAIN, device_id)},
+                name = f"{PREFIX_NAME} {device.code}",
+                model = f"{family.model} {device.device_model or ''}",
+                manufacturer =  MANUFACTURER,
+                hw_version = device.hw_version,
+                sw_version = device.sw_version,
+                serial_number = device.fid,
+            )
+
 
     async def _async_update_data(self):
         """
@@ -352,7 +371,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         for i, entity in enumerate(self._entity_map.values()):
 
-            diag_key = f"RequestValue {entity.device_name} {entity.level}"
+            diag_key = f"RequestValue {entity.device_code} {entity.level}"
             try:
                 param = entity
                 addr = entity.device_addr
@@ -367,7 +386,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
             except Exception as e:
                 if e is not XcomApiTimeoutException:
-                    _LOGGER.warning(f"Failed to request value {entity.device_name} {entity.nr} from Xcom client: {e}")
+                    _LOGGER.warning(f"Failed to request value {entity.device_code} {entity.nr} from Xcom client: {e}")
                 await self._addDiagnostic(diag_key, False, e)
 
             # Periodically wait for a second. This will make sure we do not block Xcom-LAN with
@@ -378,15 +397,14 @@ class StuderCoordinator(DataUpdateCoordinator):
     
     async def async_modify_data(self, entity: StuderEntityData, value):
 
-        diag_key = f"UpdateValue {entity.device_name} {entity.level}"
-        modify_key = f"UpdateValue {entity.device_name} {entity.nr}"
+        diag_key = f"UpdateValue {entity.device_code} {entity.level}"
         try:
             param = entity
             addr = entity.device_addr
 
             result = await self._api.updateValue(param, value, dstAddr=addr)
             if result==True:
-                _LOGGER.info(f"Successfully updated {entity.device_name} {entity.nr} to value {value}")
+                _LOGGER.info(f"Successfully updated {entity.device_code} {entity.nr} to value {value}")
 
                 self._entity_map[entity.object_id].valueModified = value
                 await self._addModified(entity, value)
@@ -394,7 +412,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 return True
             
         except Exception as e:
-            _LOGGER.warning(f"Failed to update value {entity.device_name} {entity.nr} via Xcom client: {e}")
+            _LOGGER.warning(f"Failed to update value {entity.device_code} {entity.nr} via Xcom client: {e}")
             await self._addDiagnostic(diag_key, False, e)
 
         return False

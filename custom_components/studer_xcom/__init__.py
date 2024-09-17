@@ -76,6 +76,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     if not await coordinator.start():
         raise ConfigEntryNotReady(f"Timout while waiting for Studer Xcom client to connect to our port {port}.")
     
+    # Create devices
+    await coordinator.async_create_devices(config_entry)
+    
     # Fetch initial data so we have data when entities subscribe
     #
     # If the refresh fails, async_config_entry_first_refresh will

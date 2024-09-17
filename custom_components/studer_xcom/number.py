@@ -178,12 +178,6 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             
             self._attr_device_info = DeviceInfo(
                identifiers = {(DOMAIN, entity.device_id)},
-               name = entity.device_name,
-               model = entity.device_model,
-               manufacturer =  MANUFACTURER,
-               hw_version = entity.device_hw,
-               sw_version = entity.device_sw,
-               serial_number = entity.device_fid,
             )
             changed = True
         
@@ -231,5 +225,5 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             self._attr_native_value = value
             self._xcom_ram_state = entity_value
             self.async_write_ha_state()
-            _LOGGER.debug(f"after modify data for entity {entity.device_name} {entity.nr}. _set_state={self._set_state}")
+            _LOGGER.debug(f"after modify data for entity {entity.device_code} {entity.nr}. _set_state={self._set_state}")
 

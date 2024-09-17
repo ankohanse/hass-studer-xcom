@@ -178,12 +178,6 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
             self._attr_device_class = self._get_device_class() 
             self._attr_device_info = DeviceInfo(
                identifiers = {(DOMAIN, entity.device_id)},
-               name = entity.device_name,
-               model = entity.device_model,
-               manufacturer =  MANUFACTURER,
-               hw_version = entity.device_hw,
-               sw_version = entity.device_sw,
-               serial_number = entity.device_fid,
             )
             changed = True
         

@@ -184,7 +184,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         for idx, (step_percent, step_action, step_func) in enumerate(progress_steps):
             if not progress_task:
                 if not self._progress_tasks[idx]:
-                    _LOGGER.debug(f"Step progress - create task {step_action}")
+                    _LOGGER.debug(f"Step progress - create task {step_action}, idx={idx}")
                     self._progress_tasks[idx] = self.hass.async_create_task(step_func())
 
                 if not self._progress_tasks[idx].done():
@@ -247,13 +247,14 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             # This step is only needed if connection to the Xcom client via the configured port failed.
             if not CONF_PORT in self._errors:
+                await asyncio.sleep(1)  # Sleep because async_create_task cannot handle an immediate return
                 return
                 
             _LOGGER.info("Discover Xcom Moxa Web Config")
             self._webconfig_url = await XcomDiscover.discoverMoxaWebConfig(self._webconfig_url)
+
             if self._webconfig_url:
                 _LOGGER.info("Discovered Xcom Moxa Web Config at {self._webconfig_url}")
-
                 self._errors[CONF_PORT] = f"Xcom client did not connect. \nMake sure Home Assistant IP address and port are configured via XCom Moxy Web Config on {self._webconfig_url}"
             else:
                 _LOGGER.info("Could not determine Xcom Moxa Web Config url")
