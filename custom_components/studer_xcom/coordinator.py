@@ -45,6 +45,7 @@ from .const import (
     DEFAULT_POLLING_INTERVAL,
     REQ_RETRIES,
     REQ_TIMEOUT,
+    REQ_BURST_SIZE,
 )
 from aioxcom import (
     XcomApiTcp,
@@ -371,7 +372,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
             # Periodically wait for a second. This will make sure we do not block Xcom-LAN with
             # too many requests at once and prevent it from uploading data to the Studer portal.
-            if i % 10 == 0:
+            if i % REQ_BURST_SIZE == 0:
                 await asyncio.sleep(1)
 
     

@@ -86,8 +86,9 @@ SWITCH_VALUES_OFF = [0, False, '0', 'Off']
 SWITCH_VALUES_ALL = SWITCH_VALUES_ON + SWITCH_VALUES_OFF
 
 # Request retries
-REQ_TIMEOUT = 3
-REQ_RETRIES = 3
+REQ_TIMEOUT = 3 # seconds
+REQ_RETRIES = 3 
+REQ_BURST_SIZE = 10 # do 10 requests, then wait a second, then the next 10 requests
 
 # Diagnostics
 DIAGNOSTICS_REDACT = { 'conf_secret1', 'conf_secret2' }
