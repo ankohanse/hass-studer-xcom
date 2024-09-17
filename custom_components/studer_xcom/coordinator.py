@@ -1,6 +1,7 @@
 """coordinator.py: responsible for gathering data."""
 
 import asyncio
+import collections
 import async_timeout
 import json
 import logging
@@ -44,8 +45,6 @@ from .const import (
     DEFAULT_POLLING_INTERVAL,
     REQ_RETRIES,
     REQ_TIMEOUT,
-    DIAG_REQ_KEY,
-    DIAG_STAT_KEY,
 )
 from aioxcom import (
     XcomApiTcp,
@@ -248,10 +247,8 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._modified_map_ts = datetime.now()
         
         # Diagnostics gathering
-        self._diagnostics = {
-            DIAG_REQ_KEY: {},
-            DIAG_STAT_KEY: {},
-        }
+        self._diag_requests = {}
+        self._diag_statistics = {}
 
 
     def _get_data(self):
@@ -479,10 +476,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 "fail_unpack": 0,
                 "fail_other": 0,
             },
-            "errors": {
-                "last": [],
-                "last_ts": None,
-            }
+            "errors": collections.OrderedDict()
         }
         stat_base = {
             "time": {
@@ -490,8 +484,8 @@ class StuderCoordinator(DataUpdateCoordinator):
                 "fail_minutes": { m: 0 for m in range(0, 60, 5)},
             },
         }
-        diag_data = diag_base | self._diagnostics.get(DIAG_REQ_KEY, {}).get(diag_key, {})
-        stat_data = stat_base | self._diagnostics.get(DIAG_STAT_KEY, {})
+        diag_data = diag_base | self._diag_requests.get(diag_key, {})
+        stat_data = stat_base | self._diag_statistics
         ts = datetime.now()
 
         # Update per request diagnostics
@@ -507,11 +501,10 @@ class StuderCoordinator(DataUpdateCoordinator):
             else:                              diag_data["counters"]["fail_other"] += 1
 
             if e:
-                diag_data["errors"]["last_ts"] = str(ts)
-                diag_data["errors"]["last"].append(str(e))
+                diag_data["errors"][str(ts)] = f"{str(e)} {type(e)}"
 
-                while len(diag_data["errors"]["last"]) > 16:
-                    diag_data["errors"]["last"].pop(0)
+                while len(diag_data["errors"]) > 16:
+                    diag_data["errors"].popitem(last=False)
 
         # Update overal statistics diagnostics
         if not success:
@@ -519,12 +512,13 @@ class StuderCoordinator(DataUpdateCoordinator):
             stat_data["time"]["fail_minutes"][ts.minute // 5 * 5] += 1
 
         # Remember these new values          
-        self._diagnostics[DIAG_REQ_KEY][diag_key] = diag_data
-        self._diagnostics[DIAG_STAT_KEY] = stat_data
+        self._diag_requests[diag_key] = diag_data
+        self._diag_statistics = stat_data
 
     
     async def async_get_diagnostics(self) -> dict[str, Any]:
         entity_map = { k: v.__dict__ for k,v in self._entity_map.items() }
+        diag_api = await self._api.getDiagnostics()
 
         return {
             "data": {
@@ -534,7 +528,10 @@ class StuderCoordinator(DataUpdateCoordinator):
                 "modified_map_ts": str(self._modified_map_ts),
                 "modified_map": self._modified_map,
             },
-            "diagnostics": self._diagnostics,
+            "diagnostics": {
+                "requests": self._diag_requests,
+                "statistics": self._diag_statistics | diag_api.get("statistics", {}),
+            }
         },
     
 

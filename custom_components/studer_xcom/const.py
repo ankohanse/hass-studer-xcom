@@ -91,5 +91,3 @@ REQ_RETRIES = 3
 
 # Diagnostics
 DIAGNOSTICS_REDACT = { 'conf_secret1', 'conf_secret2' }
-DIAG_REQ_KEY = "requests"
-DIAG_STAT_KEY = "statistics"
