@@ -69,6 +69,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._user_level: str = DEFAULT_USER_LEVEL
         self._webconfig_url: str = None
         self._devices: list[StuderDeviceConfig] = []
+        self._devices_old: list[StuderDeviceConfig] = []
         self._numbers: list[str] = []
         self._errors: dict[str,str] = {}
 
@@ -106,7 +107,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._webconfig_url = self._reconfig_entry.data.get(CONF_WEBCONFIG_URL, "")
         devices_data = self._reconfig_entry.data.get(CONF_DEVICES, [])
 
-        self._devices = [StuderDeviceConfig.from_dict(device) for device in devices_data]
+        self._devices: list[StuderDeviceConfig] = []
+        self._devices_old = [StuderDeviceConfig.from_dict(device) for device in devices_data]
         
         # Show the config flow
         return await self.async_step_client()
@@ -299,7 +301,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._devices = []
             for device in devices:
                 # In reconfigure, did we already have a deviceConfig for this device?
-                device_old = next((d for d in self._devices if d.address == device.addr), None)
+                device_old = next((d for d in self._devices_old if d.address == device.addr), None)
 
                 self._devices.append(StuderDeviceConfig(
                     code = device.code,
