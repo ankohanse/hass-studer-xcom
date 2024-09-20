@@ -230,6 +230,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
         self._options: dict[str,Any] = options
+        self._is_temp = is_temp
 
         self._api = XcomApiTcp(self._port)
 
@@ -271,6 +272,10 @@ class StuderCoordinator(DataUpdateCoordinator):
     def is_connected(self) -> bool:
         return self._api.connected
 
+
+    def is_temp(self) -> bool:
+        return self._is_temp
+    
 
     async def _create_entity_map(self):
         entity_map: dict[str,StuderEntityData] = {}

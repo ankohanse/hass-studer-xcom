@@ -36,6 +36,8 @@ from .const import (
     DEFAULT_FAMILY_NUMBERS,
     VOLTAGE_120VAC,
     VOLTAGE_240VAC,
+    INTEGRATION_README_URL,
+    XCOM_APPENDIX_URL,
 )
 from .coordinator import (
     StuderCoordinatorFactory,
@@ -149,6 +151,10 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 }),
                 vol.Required(CONF_PORT, description={"suggested_value": self._port}): cv.port
             }),
+            description_placeholders = {
+                "moxa_config_url": f"[Xcom Moxa Web Config]({self._webconfig_url})" if self._webconfig_url else "Xcom Moxa Web Config",
+                "readme_url": INTEGRATION_README_URL
+            },
             errors = self._errors
         )
 
@@ -223,8 +229,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if await self._coordinator.start():
                 _LOGGER.info("Xcom client connected")
             else:
-                _LOGGER.info(f"Xcom client did not connect to the specified port.")
-                self._errors[CONF_PORT] = f"Xcom client did not connect to the specified port."
+                _LOGGER.info(f"Xcom client did not connect.")
+                self._errors[CONF_PORT] = f"Xcom client did not connect; make sure the Home Assistant IP address and this port are configured via the local Xcom Moxy Web Config"
 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
@@ -255,7 +261,6 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
             if self._webconfig_url:
                 _LOGGER.info("Discovered Xcom Moxa Web Config at {self._webconfig_url}")
-                self._errors[CONF_PORT] = f"Xcom client did not connect. \nMake sure Home Assistant IP address and port are configured via XCom Moxy Web Config on {self._webconfig_url}"
             else:
                 _LOGGER.info("Could not determine Xcom Moxa Web Config url")
 
@@ -326,7 +331,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             _LOGGER.info("Disconnect from Xcom client")
-            if self._coordinator:
+            if self._coordinator and self._coordinator.is_temp:
                 await self._coordinator.stop()
                 self._coordinator = None
         except:
@@ -392,6 +397,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id = "numbers", 
             data_schema = schema,
+            description_placeholders = {
+                "numbers_url": XCOM_APPENDIX_URL,
+            },
             errors = self._errors
         )
 

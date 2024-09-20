@@ -8,14 +8,14 @@
           "port": "Port"
         },
         "data_description": {
-          "port": "Use the port as set in the Xcom Moxa Web Config"
+          "port": "Use the port as set in the local {moxa_config_url}. Check the [ReadMe]({readme_url}) for details."
         }
       },
       "progress": {
         "description": "Xcom discovery - {percent}%"
       },
       "numbers": {
-        "description": "Choose params and infos numbers per device:",
+        "description": "Choose parameter and info numbers per device from [Studer Appendix]({numbers_url})",
         "data": {
           "user_level": "User level",
           "XT1": "Xtender XT1",
@@ -31,7 +31,7 @@
           "l1": "Phase L1",
           "L2": "Phase L2",
           "L3": "Phase L3",
-          "RCC": "RCC or Xcom-LAN",
+          "RCC": "RCC",
           "BSP": "BSP",
           "BMS": "BMS",
           "VT1": "VarioTrack VT1",
