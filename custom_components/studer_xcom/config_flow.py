@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from enum import StrEnum
 import logging
 import re
 from typing import Any, Callable
@@ -46,14 +47,28 @@ from .coordinator import (
 from aioxcom import (
     LEVEL,
     OBJ_TYPE,
+    FORMAT,
     XcomDiscover,
     XcomDataset,
+    XcomDatapoint,
     XcomDatapointUnknownException,
     XcomDeviceFamilies,
     XcomDeviceFamily,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Internal consts only used within config_flow
+CONF_DEVICE = "device"
+CONF_NUMBERS = "numbers"
+CONF_NUMBERS_ACTION = "numbers_action"
+CONF_NUMBERS_MENU = "numbers_menu"
+
+class NUMBERS_ACTION(StrEnum):
+    ADD_MENU = "add_via_menu"
+    ADD_NR = "add_via_nr"
+    DEL_NR = "del_via_nr"
+    DONE = "done"
 
 
 @config_entries.HANDLERS.register("studer_xcom")
@@ -66,21 +81,34 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize config flow."""
         self._voltage: str = DEFAULT_VOLTAGE
         self._port: int = DEFAULT_PORT
-        self._user_level: str = DEFAULT_USER_LEVEL
         self._webconfig_url: str = None
+        self._user_level: str = DEFAULT_USER_LEVEL
         self._devices: list[StuderDeviceConfig] = []
         self._devices_old: list[StuderDeviceConfig] = []
-        self._numbers: list[str] = []
-        self._errors: dict[str,str] = {}
 
+        self._polling_interval = DEFAULT_POLLING_INTERVAL
+
+        self._errors: dict[str,str] = {}
         self._in_reconfigure = False
         self._reconfig_entry = None
 
         self._coordinator = None
         self._dataset = None
+
+        # Progress step
         self._progress_tasks: list[asyncio.Task[None] | None] = []
         self._progress_trace: list[bool] = []
 
+        # Add param or info via menu step
+        self._menu_device = None
+        self._menu_family = None
+        self._menu_level = DEFAULT_USER_LEVEL
+        self._menu_parent_name = "Root"
+        self._menu_parent_nr = 0
+        self._menu_history = list()
+
+        # Add/del param or info via menu step or via number step
+        self._device_code= None
 
 
     async def async_step_user(self, user_input: dict[str,Any] | None = None) -> FlowResult:
@@ -97,7 +125,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         self._in_reconfigure = True
 
-        # Load existing values
+        # Load existing values for config
         self._reconfig_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
         self._voltage = self._reconfig_entry.data.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
@@ -107,8 +135,11 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._webconfig_url = self._reconfig_entry.data.get(CONF_WEBCONFIG_URL, "")
         devices_data = self._reconfig_entry.data.get(CONF_DEVICES, [])
 
-        self._devices: list[StuderDeviceConfig] = []
+        self._devices = []
         self._devices_old = [StuderDeviceConfig.from_dict(device) for device in devices_data]
+
+        # Load existing values for options
+        self._polling_interval = self._reconfig_entry.options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)      
         
         # Show the config flow
         return await self.async_step_client()
@@ -148,7 +179,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_VOLTAGE, description={"suggested_value": self._voltage}): selector({
                     "select": { 
                         "options": [VOLTAGE_120VAC, VOLTAGE_240VAC],
-                        "mode": "dropdown"
+                        "mode": "dropdown",
+                        "translation_key": CONF_VOLTAGE
                     }
                 }),
                 vol.Required(CONF_PORT, description={"suggested_value": self._port}): cv.port
@@ -182,8 +214,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             (100, "xcom_disconnect", self._async_xcom_disconnect),
         ]
         if not self._progress_tasks:
-            self._progress_tasks = [None for _ in progress_steps]
-            self._progress_trace = [True for _ in progress_steps]
+            self._progress_tasks = [None for idx in range(len(progress_steps))]
+            self._progress_trace = [True for idx in range(len(progress_steps))]
             
         progress_task: asyncio.Task[None] | None = None
         progress_action: str = ''
@@ -215,7 +247,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         
         # all discovery tasks done
         _LOGGER.debug(f"Step progress - done")
-        _LOGGER.debug(f"devices: {', '.join([device.code for device in self._devices])}")
+        _LOGGER.debug(f"found devices: {', '.join([device.code for device in self._devices])}")
         self._progress_tasks = []
 
         return self.async_show_progress_done(next_step_id = "numbers")
@@ -312,7 +344,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     hw_version = device.hw_version,
                     sw_version = device.sw_version,
                     fid = device.fid,
-                    numbers = device_old.numbers if device_old else DEFAULT_FAMILY_NUMBERS[device.family_id]                      
+                    numbers = device_old.numbers if device_old else DEFAULT_FAMILY_NUMBERS.get(device.family_id, [])  
                 ))
                 
         except Exception as e:
@@ -332,13 +364,15 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Disconnect from the Studer Xcom client"""
 
         try:
-            _LOGGER.info("Disconnect from Xcom client")
             if self._coordinator and self._coordinator.is_temp:
+                _LOGGER.info("Disconnect from Xcom client")
                 await self._coordinator.stop()
-                self._coordinator = None
+            else:
+                await asyncio.sleep(1)  # Sleep because async_create_task cannot handle an immediate return
+
+            self._coordinator = None
         except:
             pass
-
         finally:
             if is_task:
                 # Ensure we go back to the flow
@@ -357,47 +391,314 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step numbers - handle input {user_input}")
-            self._user_level = user_input.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
+            action = user_input.get(CONF_NUMBERS_ACTION, "")
 
             # Additional validation here if needed
             self._errors = {}
-            for device in self._devices:
-                try:
-                    val_csv = user_input[device.code] if device.code in user_input else ''
-                    device.numbers = list(filter(None, [v.strip() for v in val_csv.split(',')]))
-
-                    validate = await self._valid_numbers(device.code, device.family_id)
-                    device.numbers = validate(device.numbers)
-
-                except Exception as e:
-                    _LOGGER.debug(f"Step numbers - validation error {e}")
-                    self._errors[device.code] = str(e)
-
             if not self._errors:
-                _LOGGER.debug(f"Step numbers - next step finish")
-                self._dataset = None
-                return await self.async_step_finish()
+                match action:
+                    case NUMBERS_ACTION.DONE:
+                        _LOGGER.debug(f"Step numbers - next step finish")
+                        self._dataset = None
+                        return await self.async_step_finish()
+                    
+                    case NUMBERS_ACTION.ADD_MENU:
+                        _LOGGER.debug(f"Step numbers - next step add_menu")
+                        return await self.async_step_add_menu()
+
+                    case NUMBERS_ACTION.ADD_NR:
+                        _LOGGER.debug(f"Step numbers - next step add_numbers")
+                        return await self.async_step_add_numbers()
+
+                    case NUMBERS_ACTION.DEL_NR:
+                        _LOGGER.debug(f"Step numbers - next step del_numbers")
+                        return await self.async_step_del_numbers()
+
+                    case _:
+                        _LOGGER.warning(f"Step numbers - unknown action: {action}")
+                        pass # continue below to show form again
+
+        # Build a Markdown string containing all found devices and datapoints
+        _LOGGER.debug(f"Step numbers - build markdown")
+        datapoints_md =  "| level | number | description |\n"
+        datapoints_md += "| :---- | :----- | :---------- |\n"
+
+        for idx,device in enumerate(self._devices):
+            family: XcomDeviceFamily = XcomDeviceFamilies.getById(device.family_id)
+            datapoints_md += f"| &nbsp; | &nbsp; | &nbsp; |\n" if idx > 0 else ""
+            datapoints_md += f"| &nbsp; | *{device.code}* | {family.model} |\n"
+            
+            for nr in device.numbers:
+                datapoint: XcomDatapoint = self._dataset.getByNr(nr, family.idForNr)
+                datapoints_md += f"| {datapoint.level} | {nr} | {datapoint.name} |\n"
 
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step numbers - build schema")
         schema = vol.Schema({
-            vol.Required(CONF_USER_LEVEL, description={"suggested_value": self._user_level}): selector({
+            vol.Required(CONF_NUMBERS_ACTION, description={"suggested_value": ""}): selector({
                 "select": { 
-                    "options": [ str(level) for level in LEVEL if level <= LEVEL.EXPERT ],
-                    "mode": "dropdown"
+                    "options": [NUMBERS_ACTION.ADD_MENU, NUMBERS_ACTION.ADD_NR, NUMBERS_ACTION.DEL_NR, NUMBERS_ACTION.DONE],
+                    "mode": "dropdown",
+                    "translation_key": CONF_NUMBERS_ACTION
                 }
             })
+
         })
-        for device in self._devices:
-            val_csv = ','.join([str(nr) for nr in device.numbers])
-        
-            schema = schema.extend({
-                vol.Optional(device.code, description={"suggested_value": val_csv}): cv.string
-            })
 
         _LOGGER.debug(f"Step numbers - show form")
         return self.async_show_form(
             step_id = "numbers", 
+            data_schema = schema,
+            description_placeholders = {
+                "numbers_url": XCOM_APPENDIX_URL,
+                "datapoints": datapoints_md,
+            },
+            errors = self._errors
+        )
+
+
+    async def async_step_add_menu(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+        """
+        Step 3a: add params or infos numbers for a device via a menu
+        """
+        if user_input is not None:
+            # Get form data
+            _LOGGER.debug(f"Step add_menu - handle input {user_input}")
+            self._device_code = user_input.get(CONF_DEVICE, None)
+            self._user_level = user_input.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
+
+            device = next( (device for device in self._devices if device.code == self._device_code), None)
+            level = LEVEL.from_str(self._user_level)
+
+            # Additional validation here if needed
+            self._errors = {}
+            if not self._errors:
+                if device is not None:
+                    _LOGGER.debug(f"Step add_menu - next step add_menu_items")
+                    self._menu_device = device
+                    self._menu_family = XcomDeviceFamilies.getById(device.family_id)
+                    self._menu_level = level
+                    self._menu_parent_name = "Root"
+                    self._menu_parent_nr = 0
+                    self._menu_history = list()
+                    return await self.async_step_add_menu_items()
+                else:
+                    _LOGGER.debug(f"Step add_menu - next step numbers")
+                    return await self.async_step_numbers()
+                    
+        # Build the schema for the form and show the form
+        _LOGGER.debug(f"Step add_menu - build schema")
+        schema = vol.Schema({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code}): selector({
+                "select": { 
+                    "options": [device.code for device in self._devices],
+                    "mode": "dropdown",
+                    "translation_key": CONF_DEVICE
+                }
+            }),
+            vol.Required(CONF_USER_LEVEL, description={"suggested_value": str(self._user_level)}): selector({
+                "select": { 
+                    "options": [ str(level) for level in LEVEL if level <= LEVEL.EXPERT ],
+                    "mode": "dropdown",
+                    "translation_key": CONF_USER_LEVEL
+                }
+            })
+        })
+
+        _LOGGER.debug(f"Step add_menu - show form")
+        return self.async_show_form(
+            step_id = "add_menu", 
+            data_schema = schema,
+            errors = self._errors
+        )
+
+
+    async def async_step_add_menu_items(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+        """
+        Step 3a: add params or infos numbers for a device via a menu
+        """
+        if user_input is not None:
+            # Get form data
+            _LOGGER.debug(f"Step add_menu_items - handle input {user_input}")
+            chosen = user_input.get(CONF_NUMBERS_MENU, None)
+            key = next( (k for k,v in self._menu_options.items() if v == chosen), None)
+            _LOGGER.debug(f"Step add_menu_items - handle input key:{key}")
+
+            match key:
+                case "back":
+                    _LOGGER.debug(f"Step add_menu - next step numbers (back)")
+                    return await self.async_step_numbers()
+                
+                case "parent":
+                    (self._menu_parent_name, self._menu_parent_nr) = self._menu_history.pop()
+                    # continue below to show parent menu
+
+                case _:
+                    datapoint = self._dataset.getByNr(int(key))
+                    if datapoint.format == FORMAT.MENU:
+                        self._menu_history.append( (self._menu_parent_name, self._menu_parent_nr) )
+                        self._menu_parent_name = datapoint.name
+                        self._menu_parent_nr = datapoint.nr
+                        # continue below to show sub menu
+                    else:
+                        dev_numbers = set(self._menu_device.numbers or [])
+                        dev_numbers.add(datapoint.nr)
+                        self._menu_device.numbers = sorted(dev_numbers)
+                        _LOGGER.debug(f"menu_device new: {self._menu_device}")
+                        _LOGGER.debug(f"all device: {self._devices}")
+
+                        _LOGGER.debug(f"Step add_menu - next step numbers (added {datapoint.nr} to {self._menu_device.code})")
+                        return await self.async_step_numbers()                      
+                    
+        # Build the menu options for the form and show the form
+        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} {self._menu_family.idForNr}")
+        self._menu_options = {}
+        self._menu_options["back"] = "back" #"Back to numbers overview"
+
+        if len(self._menu_history) > 0:
+            self._menu_options["parent"] = "parent" #"Back to parent menu"
+
+        items = self._dataset.getMenuItems(self._menu_parent_nr, self._menu_family.idForNr)
+        for item in items:
+            if item.level <= self._menu_level:
+                lvl = item.level
+                nr = item.nr if item.nr >= 1000 else ""
+                name = item.name
+                menu = "►" if item.format == FORMAT.MENU else ""
+                self._menu_options[str(item.nr)] = f"{lvl} {nr} - {name} {menu}"
+
+        _LOGGER.debug(f"Step add_menu_items - build schema")
+        schema = vol.Schema({
+            vol.Required(CONF_NUMBERS_MENU): selector({
+                "select": { 
+                    "options": list(self._menu_options.values()),
+                    "mode": "list",
+                    "translation_key": CONF_NUMBERS_MENU
+                }
+            })
+        })
+
+        _LOGGER.debug(f"Step add_menu_items - show form")
+        return self.async_show_form(
+            step_id = "add_menu_items", 
+            data_schema = schema,
+            description_placeholders = {
+                "menu_name": self._menu_parent_name
+            },
+            errors = self._errors
+        )
+
+
+    async def async_step_add_numbers(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+        """
+        Step 3b: add params or infos numbers for a device by directly entering the numbers
+        """
+        numbers_csv = ""
+
+        if user_input is not None:
+            # Get form data
+            _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
+            device_code = user_input.get(CONF_DEVICE, None)
+            numbers_csv = user_input.get(CONF_NUMBERS, "")
+
+            device = next( (device for device in self._devices if device.code == device_code), None)
+            numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
+
+            _LOGGER.debug(f"Step add_numbers - debug; numbers_csv={numbers_csv}, numbers={numbers}, device={device}")
+
+            # Additional validation here if needed
+            self._device_code = device_code
+            self._errors = {}
+            if device is not None and len(numbers) > 0:
+                try:
+                    validate = await self._valid_numbers(device.code, device.family_id)
+                    add_numbers = validate(numbers, check_family=True, check_level=False)
+
+                    dev_numbers = set(device.numbers or [])
+                    dev_numbers.update(add_numbers)
+                    device.numbers = sorted(dev_numbers)
+
+                except Exception as e:
+                    _LOGGER.debug(f"Step add_numbers - validation error {e}")
+                    self._errors[CONF_NUMBERS] = str(e)
+
+            if not self._errors:
+                _LOGGER.debug(f"Step add_numbers - next step view_numbers")
+                return await self.async_step_numbers()
+
+        # Build the schema for the form and show the form
+        _LOGGER.debug(f"Step add_numbers - build schema")
+        schema = vol.Schema({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code}): selector({
+                "select": { 
+                    "options": [device.code for device in self._devices],
+                    "mode": "dropdown",
+                    "translation_key": CONF_DEVICE
+                }
+            }),
+            vol.Optional(CONF_NUMBERS, description={"suggested_value": numbers_csv}): cv.string
+        })
+
+        _LOGGER.debug(f"Step add_numbers - show form")
+        return self.async_show_form(
+            step_id = "add_numbers", 
+            data_schema = schema,
+            description_placeholders = {
+                "numbers_url": XCOM_APPENDIX_URL,
+            },
+            errors = self._errors
+        )
+
+
+    async def async_step_del_numbers(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+        """
+        Step 3c: Remove params or infos numbers for a device by directly entering the numbers
+        """
+        numbers_csv = ""
+
+        if user_input is not None:
+            # Get form data
+            _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
+            device_code = user_input.get(CONF_DEVICE, None)
+            numbers_csv = user_input.get(CONF_NUMBERS, "")
+
+            device = next( (device for device in self._devices if device.code == device_code), None)
+            numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
+
+            # Additional validation here if needed
+            self._device_code = device_code
+            self._errors = {}
+            if device is not None and len(numbers) > 0:
+                try:
+                    validate = await self._valid_numbers(device.code, device.family_id)
+                    numbers = validate(numbers, check_family=False, check_level=False)
+
+                    device.numbers = [n for n in device.numbers if n not in numbers]
+
+                except Exception as e:
+                    _LOGGER.debug(f"Step del_numbers - validation error {e}")
+                    self._errors[CONF_NUMBERS] = str(e)
+
+            if not self._errors:
+                _LOGGER.debug(f"Step del_numbers - next step view_numbers")
+                return await self.async_step_numbers()
+
+        # Build the schema for the form and show the form
+        _LOGGER.debug(f"Step del_numbers - build schema")
+        schema = vol.Schema({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code}): selector({
+                "select": { 
+                    "options": [device.code for device in self._devices],
+                    "mode": "dropdown",
+                    "translation_key": CONF_DEVICE
+                }
+            }),
+            vol.Optional(CONF_NUMBERS, description={"suggested_value": numbers_csv}): cv.string
+        })
+
+        _LOGGER.debug(f"Step del_numbers - show form")
+        return self.async_show_form(
+            step_id = "del_numbers", 
             data_schema = schema,
             description_placeholders = {
                 "numbers_url": XCOM_APPENDIX_URL,
@@ -411,7 +712,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         family = XcomDeviceFamilies.getById(family_id)
         user_level = LEVEL.from_str(self._user_level)
         
-        def validate(value: Any) -> list[int]:
+        def validate(value: Any, check_family=True, check_level=True) -> list[int]:
             if not isinstance(value, list):
                 raise vol.Invalid("Expected a list")
             
@@ -424,17 +725,22 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 
                 # Check that the number is a valid param or infos number within this family
                 nr = int(val)
-                try:
-                    param = self._dataset.getByNr(nr, family.idForNr)
 
-                except XcomDatapointUnknownException:
-                    raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
+                if check_family:
+                    try:
+                        param = self._dataset.getByNr(nr, family.idForNr)
+                    except XcomDatapointUnknownException:
+                        raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
 
-                if param.obj_type not in [OBJ_TYPE.INFO, OBJ_TYPE.PARAMETER]:
-                    raise vol.Invalid(f"Number {nr} is not a valid info or param")
+                    if param.obj_type not in [OBJ_TYPE.INFO, OBJ_TYPE.PARAMETER]:
+                        raise vol.Invalid(f"Number {nr} is not a valid info or param")
+
+                    if param.format in [FORMAT.MENU, FORMAT.ERROR, FORMAT.INVALID]:
+                        raise vol.Invalid(f"Number {nr} is not a valid info or param")
                 
-                if param.level > user_level:
-                    raise vol.Invalid(f"Number {nr} is not allowed with user level {user_level}")
+                if check_level:
+                    if param.level > user_level:
+                        raise vol.Invalid(f"Number {nr} is not allowed with user level {user_level}")
 
                 result.append(nr)
 
@@ -447,35 +753,27 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """
         Configuration and discovery has succeeded
         """
-        if user_input is not None:
-            # Create the integration entry
-            title = f"Studer via Xcom port {self._port}"
-            data = {
-                CONF_VOLTAGE: self._voltage,
-                CONF_PORT: self._port,
-                CONF_USER_LEVEL: self._user_level,
-                CONF_WEBCONFIG_URL: self._webconfig_url,
-                CONF_DEVICES: [device.as_dict() for device in self._devices],
-            }
-            options = {
-                CONF_POLLING_INTERVAL: DEFAULT_POLLING_INTERVAL,
-            }
 
-            _LOGGER.debug(f"Step finish - (re)create entry, data:{data}, options:{options}")
-            if self._in_reconfigure:
-                reason = "Reconfigure finished"
-                return self.async_update_reload_and_abort(self._reconfig_entry, title=title, data=data, options=options, reason=reason)
-            else:
-                return self.async_create_entry(title=title, data=data, options=options)
-        
-        # Show the form to show we are ready
-        _LOGGER.debug(f"Step finish - show form")
-        
-        return self.async_show_form(
-            step_id = "finish",
-            errors = self._errors,
-            last_step = True,
-        )
+        # Create the integration entry
+        title = f"Studer via Xcom port {self._port}"
+        data = {
+            CONF_VOLTAGE: self._voltage,
+            CONF_PORT: self._port,
+            CONF_WEBCONFIG_URL: self._webconfig_url,
+            CONF_USER_LEVEL: self._user_level,
+            CONF_DEVICES: [device.as_dict() for device in self._devices],
+        }
+        options = {
+            CONF_POLLING_INTERVAL: self._polling_interval,
+        }
+
+        _LOGGER.debug(f"Step finish - (re)create entry, data:{data}, options:{options}")
+        if self._in_reconfigure:
+            reason = "Reconfigure finished"
+            return self.async_update_reload_and_abort(self._reconfig_entry, title=title, data=data, options=options, reason=reason)
+        else:
+            return self.async_create_entry(title=title, data=data, options=options)
+
 
     @staticmethod
     @callback

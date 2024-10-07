@@ -15,59 +15,43 @@
         "description": "Xcom discovery - {percent}%"
       },
       "numbers": {
-        "description": "Choose parameter and info numbers per device from [Studer Appendix]({numbers_url})",
+        "description": "Choose parameter and info numbers per device from [Studer Appendix]({numbers_url})\n\n{datapoints}",
         "data": {
-          "user_level": "User level",
-          "XT1": "Xtender XT1",
-          "XT2": "Xtender XT2",
-          "XT3": "Xtender XT3",
-          "XT4": "Xtender XT4",
-          "XT5": "Xtender XT5",
-          "XT6": "Xtender XT6",
-          "XT7": "Xtender XT7",
-          "XT8": "Xtender XT8",
-          "XT9": "Xtender XT9",
-          "L1": "Phase L1",
-          "l1": "Phase L1",
-          "L2": "Phase L2",
-          "L3": "Phase L3",
-          "RCC": "RCC",
-          "BSP": "BSP",
-          "BMS": "BMS",
-          "VT1": "VarioTrack VT1",
-          "VT2": "VarioTrack VT2",
-          "VT3": "VarioTrack VT3",
-          "VT4": "VarioTrack VT4",
-          "VT5": "VarioTrack VT5",
-          "VT6": "VarioTrack VT6",
-          "VT7": "VarioTrack VT7",
-          "VT8": "VarioTrack VT8",
-          "VT9": "VarioTrack VT9",
-          "VT10": "VarioTrack VT10",
-          "VT11": "VarioTrack VT11",
-          "VT12": "VarioTrack VT12",
-          "VT13": "VarioTrack VT13",
-          "VT14": "VarioTrack VT14",
-          "VT15": "VarioTrack VT15",
-          "VS1": "VarioString VS1",
-          "VS2": "VarioString VS2",
-          "VS3": "VarioString VS3",
-          "VS4": "VarioString VS4",
-          "VS5": "VarioString VS5",
-          "VS6": "VarioString VS6",
-          "VS7": "VarioString VS7",
-          "VS8": "VarioString VS8",
-          "VS9": "VarioString VS9",
-          "VS10": "VarioString VS10",
-          "VS11": "VarioString VS11",
-          "VS12": "VarioString VS12",
-          "VS13": "VarioString VS13",
-          "VS14": "VarioString VS14",
-          "VS15": "VarioString VS15"
+          "numbers_action": "Action"
         }
       },
-      "finish": {
-        "description": "Finished configuration. \nPress the submit button to create the integration's entities and devices."
+      "add_menu": {
+        "description": "Add parameter and info numbers to a device via a menu.",
+        "data": {
+          "device": "Device",
+          "user_level": "User Level"
+        }
+      },
+      "add_menu_items": {
+        "description": "{menu_name}",
+        "data": {
+          "numbers_menu": ""
+        }
+      },
+      "add_numbers": {
+        "description": "Add parameter and info numbers to a device.\n\nA complete list of available numbers can be found in [Studer Appendix]({numbers_url})",
+        "data": {
+          "device": "Device",
+          "numbers": "Numbers"
+        },
+        "data_description": {
+          "numbers": "Multiple comma separated parameter and info numbers can be added at once.\n\nTo cancel the add, leave numbers empty and press Submit."
+        }
+      },
+      "del_numbers": {
+        "description": "Remove parameter and info numbers from a device.",
+        "data": {
+          "device": "Device",
+          "numbers": "Numbers"
+        },
+        "data_description": {
+          "numbers": "Multiple comma separated parameter and info numbers can be removed at once.\n\nTo cancel the remove, leave numbers empty and press Submit."
+        }
       }
     },
     "progress": {
@@ -100,6 +84,87 @@
       }
     },
     "error": {
+    }
+  },
+  "selector": {
+    "voltage": {
+      "options": {
+        "120 Vac": "120 Vac",
+        "240 Vac": "240 Vac"
+      }
+    },
+    "numbers_action": {
+      "options": {
+        "add_via_menu": "add item via menu", 
+        "add_via_nr": "add item via number", 
+        "del_via_nr": "remove item",
+        "done": "done"
+      }
+    },
+    "device": {
+      "options": {
+        "XT1": "Xtender XT1",
+        "XT2": "Xtender XT2",
+        "XT3": "Xtender XT3",
+        "XT4": "Xtender XT4",
+        "XT5": "Xtender XT5",
+        "XT6": "Xtender XT6",
+        "XT7": "Xtender XT7",
+        "XT8": "Xtender XT8",
+        "XT9": "Xtender XT9",
+        "L1": "Phase L1",
+        "l1": "Phase L1",
+        "L2": "Phase L2",
+        "L3": "Phase L3",
+        "RCC": "RCC",
+        "BSP": "BSP",
+        "BMS": "BMS",
+        "VT1": "VarioTrack VT1",
+        "VT2": "VarioTrack VT2",
+        "VT3": "VarioTrack VT3",
+        "VT4": "VarioTrack VT4",
+        "VT5": "VarioTrack VT5",
+        "VT6": "VarioTrack VT6",
+        "VT7": "VarioTrack VT7",
+        "VT8": "VarioTrack VT8",
+        "VT9": "VarioTrack VT9",
+        "VT10": "VarioTrack VT10",
+        "VT11": "VarioTrack VT11",
+        "VT12": "VarioTrack VT12",
+        "VT13": "VarioTrack VT13",
+        "VT14": "VarioTrack VT14",
+        "VT15": "VarioTrack VT15",
+        "VS1": "VarioString VS1",
+        "VS2": "VarioString VS2",
+        "VS3": "VarioString VS3",
+        "VS4": "VarioString VS4",
+        "VS5": "VarioString VS5",
+        "VS6": "VarioString VS6",
+        "VS7": "VarioString VS7",
+        "VS8": "VarioString VS8",
+        "VS9": "VarioString VS9",
+        "VS10": "VarioString VS10",
+        "VS11": "VarioString VS11",
+        "VS12": "VarioString VS12",
+        "VS13": "VarioString VS13",
+        "VS14": "VarioString VS14",
+        "VS15": "VarioString VS15"
+      }
+    },
+    "user_level": {
+      "options": {
+        "INFO": "Info",
+        "BASIC": "Basic",
+        "EXPERT": "Expert",
+        "INST": "Installer",
+        "QSP": "Qualified Service Person"
+      }
+    },
+    "numbers_menu": {
+      "options": {
+        "back": "Back to numbers overview",
+        "parent": "Back to parent menu"
+      }
     }
   }
 }

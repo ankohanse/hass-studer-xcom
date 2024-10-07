@@ -269,10 +269,12 @@ class StuderCoordinator(DataUpdateCoordinator):
         await self._api.stop()
 
     
+    @property
     def is_connected(self) -> bool:
         return self._api.connected
 
 
+    @property
     def is_temp(self) -> bool:
         return self._is_temp
     
