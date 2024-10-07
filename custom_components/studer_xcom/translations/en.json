@@ -35,12 +35,20 @@
       },
       "add_numbers": {
         "description": "Add parameter and info numbers to a device.\n\nA complete list of available numbers can be found in [Studer Appendix]({numbers_url})",
+        "data": {
+          "device": "Device",
+          "numbers": "Numbers"
+        },
         "data_description": {
           "numbers": "Multiple comma separated parameter and info numbers can be added at once.\n\nTo cancel the add, leave numbers empty and press Submit."
         }
       },
       "del_numbers": {
         "description": "Remove parameter and info numbers from a device.",
+        "data": {
+          "device": "Device",
+          "numbers": "Numbers"
+        },
         "data_description": {
           "numbers": "Multiple comma separated parameter and info numbers can be removed at once.\n\nTo cancel the remove, leave numbers empty and press Submit."
         }
@@ -71,8 +79,6 @@
         "data": {
           "polling_interval": "Polling interval"
         },
-        "data_description": {
-        }
       }
     },
     "error": {

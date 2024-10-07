@@ -78,8 +78,6 @@
         "title": "General Options",
         "data": {
           "polling_interval": "Polling interval"
-        },
-        "data_description": {
         }
       }
     },
