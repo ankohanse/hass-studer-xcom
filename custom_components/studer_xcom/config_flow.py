@@ -108,7 +108,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._menu_history = list()
 
         # Add/del param or info via menu step or via number step
-        self._device_code= None
+        self._device_code = ""
 
 
     async def async_step_user(self, user_input: dict[str,Any] | None = None) -> FlowResult:
@@ -464,8 +464,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_menu - handle input {user_input}")
-            self._device_code = user_input.get(CONF_DEVICE, None)
-            self._user_level = user_input.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
+            self._device_code = str(user_input.get(CONF_DEVICE, "")).upper()
+            self._user_level = str(user_input.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)).upper()
 
             device = next( (device for device in self._devices if device.code == self._device_code), None)
             level = LEVEL.from_str(self._user_level)
@@ -489,16 +489,16 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step add_menu - build schema")
         schema = vol.Schema({
-            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code}): selector({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code.lower()}): selector({
                 "select": { 
-                    "options": [device.code for device in self._devices],
+                    "options": [device.code.lower() for device in self._devices],
                     "mode": "dropdown",
                     "translation_key": CONF_DEVICE
                 }
             }),
-            vol.Required(CONF_USER_LEVEL, description={"suggested_value": str(self._user_level)}): selector({
+            vol.Required(CONF_USER_LEVEL, description={"suggested_value": str(self._user_level).lower()}): selector({
                 "select": { 
-                    "options": [ str(level) for level in LEVEL if level <= LEVEL.EXPERT ],
+                    "options": [ str(level).lower() for level in LEVEL if level <= LEVEL.EXPERT ],
                     "mode": "dropdown",
                     "translation_key": CONF_USER_LEVEL
                 }
@@ -598,7 +598,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
-            device_code = user_input.get(CONF_DEVICE, None)
+            device_code = str(user_input.get(CONF_DEVICE, "")).upper()
             numbers_csv = user_input.get(CONF_NUMBERS, "")
 
             device = next( (device for device in self._devices if device.code == device_code), None)
@@ -629,9 +629,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step add_numbers - build schema")
         schema = vol.Schema({
-            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code}): selector({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code.lower()}): selector({
                 "select": { 
-                    "options": [device.code for device in self._devices],
+                    "options": [device.code.lower() for device in self._devices],
                     "mode": "dropdown",
                     "translation_key": CONF_DEVICE
                 }
@@ -659,7 +659,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
-            device_code = user_input.get(CONF_DEVICE, None)
+            device_code = str(user_input.get(CONF_DEVICE, "")).upper()
             numbers_csv = user_input.get(CONF_NUMBERS, "")
 
             device = next( (device for device in self._devices if device.code == device_code), None)
@@ -686,9 +686,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step del_numbers - build schema")
         schema = vol.Schema({
-            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code}): selector({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code.lower()}): selector({
                 "select": { 
-                    "options": [device.code for device in self._devices],
+                    "options": [device.code.lower() for device in self._devices],
                     "mode": "dropdown",
                     "translation_key": CONF_DEVICE
                 }
