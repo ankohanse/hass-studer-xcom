@@ -30,7 +30,7 @@
       "add_menu_items": {
         "description": "{menu_name}",
         "data": {
-          "numbers_menu": " "
+          "numbers_menu": "►"
         }
       },
       "add_numbers": {
