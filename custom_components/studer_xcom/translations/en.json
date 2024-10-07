@@ -30,7 +30,7 @@
       "add_menu_items": {
         "description": "{menu_name}",
         "data": {
-          "numbers_menu": ""
+          "numbers_menu": " "
         }
       },
       "add_numbers": {
@@ -87,8 +87,8 @@
   "selector": {
     "voltage": {
       "options": {
-        "120 Vac": "120 Vac",
-        "240 Vac": "240 Vac"
+        "120_vac": "120 Vac",
+        "240_vac": "240 Vac"
       }
     },
     "numbers_action": {

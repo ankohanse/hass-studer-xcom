@@ -35,8 +35,6 @@ from .const import (
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_FAMILY_NUMBERS,
-    VOLTAGE_120VAC,
-    VOLTAGE_240VAC,
     INTEGRATION_README_URL,
     XCOM_APPENDIX_URL,
 )
@@ -48,6 +46,7 @@ from aioxcom import (
     LEVEL,
     OBJ_TYPE,
     FORMAT,
+    VOLTAGE,
     XcomDiscover,
     XcomDataset,
     XcomDatapoint,
@@ -69,6 +68,12 @@ class NUMBERS_ACTION(StrEnum):
     ADD_NR = "add_via_nr"
     DEL_NR = "del_via_nr"
     DONE = "done"
+
+
+def translation_key(val):
+    if type(val) is not str:
+        val = str(val)
+    return val.lower().replace(' ','_') if val else ""
 
 
 @config_entries.HANDLERS.register("studer_xcom")
@@ -152,7 +157,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step client - handle input {user_input}")
-            self._voltage = user_input.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
+            voltage = user_input.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
+            self._voltage = next((v for v in VOLTAGE if translation_key(v) == voltage), DEFAULT_VOLTAGE)
             self._port = user_input.get(CONF_PORT, DEFAULT_PORT)
 
             # Check if port is not already in user for another Hub
@@ -176,9 +182,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id = "client", 
             data_schema = vol.Schema({
-                vol.Required(CONF_VOLTAGE, description={"suggested_value": self._voltage}): selector({
-                    "select": { 
-                        "options": [VOLTAGE_120VAC, VOLTAGE_240VAC],
+                vol.Required(CONF_VOLTAGE, description={"suggested_value": translation_key(self._voltage)}): selector({                    "select": { 
+                        "options": [translation_key(v) for v in VOLTAGE],
                         "mode": "dropdown",
                         "translation_key": CONF_VOLTAGE
                     }
@@ -464,11 +469,11 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_menu - handle input {user_input}")
-            self._device_code = str(user_input.get(CONF_DEVICE, "")).upper()
-            self._user_level = str(user_input.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)).upper()
+            self._device_code = user_input.get(CONF_DEVICE, "")
+            self._user_level = user_input.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
 
-            device = next( (device for device in self._devices if device.code == self._device_code), None)
-            level = LEVEL.from_str(self._user_level)
+            device = next( (device for device in self._devices if translation_key(device.code) == self._device_code), None)
+            level = next( (level for level in LEVEL if translation_key(level) == self._user_level), DEFAULT_USER_LEVEL)
 
             # Additional validation here if needed
             self._errors = {}
@@ -489,16 +494,16 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step add_menu - build schema")
         schema = vol.Schema({
-            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code.lower()}): selector({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": translation_key(self._device_code)}): selector({
                 "select": { 
-                    "options": [device.code.lower() for device in self._devices],
+                    "options": [translation_key(device.code) for device in self._devices],
                     "mode": "dropdown",
                     "translation_key": CONF_DEVICE
                 }
             }),
-            vol.Required(CONF_USER_LEVEL, description={"suggested_value": str(self._user_level).lower()}): selector({
+            vol.Required(CONF_USER_LEVEL, description={"suggested_value": translation_key(self._user_level)}): selector({
                 "select": { 
-                    "options": [ str(level).lower() for level in LEVEL if level <= LEVEL.EXPERT ],
+                    "options": [ translation_key(level) for level in LEVEL if level <= LEVEL.EXPERT ],
                     "mode": "dropdown",
                     "translation_key": CONF_USER_LEVEL
                 }
@@ -561,11 +566,10 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         items = self._dataset.getMenuItems(self._menu_parent_nr, self._menu_family.idForNr)
         for item in items:
             if item.level <= self._menu_level:
-                lvl = item.level
-                nr = item.nr if item.nr >= 1000 else ""
+                nr = f"{item.level} {item.nr} - " if item.nr >= 1000 else ""
                 name = item.name
-                menu = "►" if item.format == FORMAT.MENU else ""
-                self._menu_options[str(item.nr)] = f"{lvl} {nr} - {name} {menu}"
+                menu = " ►" if item.format == FORMAT.MENU else ""
+                self._menu_options[str(item.nr)] = f"{nr}{name}{menu}"
 
         _LOGGER.debug(f"Step add_menu_items - build schema")
         schema = vol.Schema({
@@ -598,10 +602,10 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
-            device_code = str(user_input.get(CONF_DEVICE, "")).upper()
+            device_code = user_input.get(CONF_DEVICE, "")
             numbers_csv = user_input.get(CONF_NUMBERS, "")
 
-            device = next( (device for device in self._devices if device.code == device_code), None)
+            device = next( (device for device in self._devices if translation_key(device.code) == device_code), None)
             numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
 
             _LOGGER.debug(f"Step add_numbers - debug; numbers_csv={numbers_csv}, numbers={numbers}, device={device}")
@@ -629,9 +633,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step add_numbers - build schema")
         schema = vol.Schema({
-            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code.lower()}): selector({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": translation_key(self._device_code)}): selector({
                 "select": { 
-                    "options": [device.code.lower() for device in self._devices],
+                    "options": [translation_key(device.code) for device in self._devices],
                     "mode": "dropdown",
                     "translation_key": CONF_DEVICE
                 }
@@ -659,10 +663,10 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
-            device_code = str(user_input.get(CONF_DEVICE, "")).upper()
+            device_code = user_input.get(CONF_DEVICE, "")
             numbers_csv = user_input.get(CONF_NUMBERS, "")
 
-            device = next( (device for device in self._devices if device.code == device_code), None)
+            device = next( (device for device in self._devices if translation_key(device.code) == device_code), None)
             numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
 
             # Additional validation here if needed
@@ -686,9 +690,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step del_numbers - build schema")
         schema = vol.Schema({
-            vol.Optional(CONF_DEVICE, description={"suggested_value": self._device_code.lower()}): selector({
+            vol.Optional(CONF_DEVICE, description={"suggested_value": translation_key(self._device_code)}): selector({
                 "select": { 
-                    "options": [device.code.lower() for device in self._devices],
+                    "options": [translation_key(device.code) for device in self._devices],
                     "mode": "dropdown",
                     "translation_key": CONF_DEVICE
                 }

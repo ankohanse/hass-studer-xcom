@@ -7,6 +7,11 @@ from typing import Final
 
 from homeassistant.const import Platform
 
+from aioxcom import (
+    LEVEL,
+    VOLTAGE,
+)
+
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 # Base component constants
@@ -36,12 +41,9 @@ COORDINATOR = "Coordinator"
 HELPER = "Helper"
 
 # configuration items and their defaults
-VOLTAGE_120VAC = "120 Vac"
-VOLTAGE_240VAC = "240 Vac"
-
-DEFAULT_VOLTAGE = VOLTAGE_240VAC
+DEFAULT_VOLTAGE = VOLTAGE.AC240
 DEFAULT_PORT = 4001
-DEFAULT_USER_LEVEL = "BASIC"
+DEFAULT_USER_LEVEL = LEVEL.BASIC
 DEFAULT_POLLING_INTERVAL = 30
 
 DEFAULT_FAMILY_NUMBERS = {
