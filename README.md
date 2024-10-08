@@ -29,33 +29,7 @@ This custom component provides a more reliable alternative to polling data from 
 
 This device depends on having a Studer Xcom-LAN (i.e. an Xcom-232i and a Moxa ethernet gateway) acting as a Xcom client and connecting to this integration. For older systems this will be a separate component, for future systems Studer have indicated that LAN connection will become part of the Xtender range.
 
-The Studer Xcom-LAN will be able to simultaneously send data to the Studer online portal as well as sending data to this integration.
-
-Configuration steps:
-
-1. Download and install the Moxa DSU tool (Device Search Utility)
-    - Open [www.moxa.com](https://www.moxa.com) in a browser
-    - Select Support -> Software and Documentation
-    - Choose NPort 5100A series (or whatever specific device you have)
-    - Scroll down under 'Related Software, Firmware and Drivers' to find 'Device Search Utility'
-    - Download and install the utility
-
-2. Locate the Moxa NPort device on the local network
-    - Run the Moxa Device Search Utility
-    - Press the 'Search' button and wait until the search finishes
-    - The utility should display the found NPort device
-    - Double click on the found device to open its configuration page
-
-      ![dsu_search_results](documentation/DSU_results.png)
-
-3. Configure the Moxa NPort device
-    - In the Main Menu, select 'Operating Settings' -> Port 1
-    - Verify that 'Operation Mode' is set to 'TCP Client'
-    - Add the ip-address or network name of your HomeAssistant as 'Destination IP address'
-    - Press the 'Submit' button
-    - Press 'Save/Restart'
-
-      ![moxa_operating_settings](documentation/Moxa_operating_settings.png)
+The Studer Xcom-LAN is able to simultaneously send data to the Studer online portal as well as sending data to this integration.
 
 
 # Installation
@@ -116,9 +90,12 @@ To start the setup of this custom integration:
 
 The following properties are required to connect to Xcom client on the local network
 - AC voltage: choose between 120 Vac or 240 Vac; used to select the correct Xcom params min and max values
-- Port: specify the port as set in the Moxa NPort confuguration. Default 4001
+- Port: specify the port as set in the Moxa NPort configuration. Default 4001
   
 ![setup_step_1](documentation/setup_client.png)
+
+If the discovery of Studer devices in step 2 fails then the configuration returns to the screen of step 1.
+In that case, check the configuration of the Xcom-LAN device as described in document [Xcom-LAN config.md](Xcom-LAN%20config.md)
 
 ## Step 2 - Xcom discovery
 
@@ -129,7 +106,13 @@ This is a fully automatic step, no user input needed.
 
 ## Step 3 - Params and infos numbers
 
-Choose the params and info numbers you want for each detected device.
+An overview is shown of (default selected) params and info numbers for each detected device.
+In this screen, the actions dropdown box allows you to:
+- Add a param or info number to a device via a menu structure
+- Add param or info numbers to a device by directly entering the numbers
+- Remove param or info numbers from a device by entering the numbers
+
+![setup_step_3](documentation/setup_numbers.png)
 
 A full list of available numbers can be found in the library used by this integration: 
 - [aioxcom/xcom_datapoints_240v.json](https://github.com/ankohanse/aioxcom/blob/master/src/aioxcom/xcom_datapoints_240v.json)
@@ -146,19 +129,13 @@ and search for lines looking like:
 
 Note: the first data retrieval after a restart will always take longer than subsequent data retrievals.
 
-![setup_step_3](documentation/setup_numbers.png)
-
 ## Step 4 - Finish
 
-Press submit to create all entities (sensors, switches, numbers, etc) for the configured params and infos numbers
-  
-![setup_step_4](documentation/setup_finish.png)
-
-## Step 5 - Success
+Select action 'Done' and press submit to create all entities (sensors, switches, numbers, etc) for the configured params and infos numbers.
 
 After succcessful setup, all devices from the Studer installation should show up.
 
-![setup_step_5](documentation/setup_success.png)
+![setup_step_4](documentation/setup_success.png)
 
 On the individual device pages, the hardware related device information is displayed, together with sensors typically grouped into main entity sensors, controls and diagnostics.
 

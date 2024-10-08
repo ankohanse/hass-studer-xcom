@@ -65,6 +65,7 @@ CONF_POLLING_INTERVAL = "polling_interval"
 CONF_WEBCONFIG_URL = "webconfig_url"
 
 INTEGRATION_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/README.md"
+MOXA_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/Xcom-LAN%20config.md"
 XCOM_APPENDIX_URL = "https://github.com/ankohanse/aioxcom/blob/master/documentation/Technical%20specification%20-%20Xtender%20serial%20protocol%20appendix%20-%201.6.38.pdf"
 
 #Entity configuration

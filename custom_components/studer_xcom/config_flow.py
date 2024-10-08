@@ -36,6 +36,7 @@ from .const import (
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_FAMILY_NUMBERS,
     INTEGRATION_README_URL,
+    MOXA_README_URL,
     XCOM_APPENDIX_URL,
 )
 from .coordinator import (
@@ -192,6 +193,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             }),
             description_placeholders = {
                 "moxa_config_url": f"[Xcom Moxa Web Config]({self._webconfig_url})" if self._webconfig_url else "Xcom Moxa Web Config",
+                "moxa_readme_url": MOXA_README_URL,
                 "readme_url": INTEGRATION_README_URL
             },
             errors = self._errors
