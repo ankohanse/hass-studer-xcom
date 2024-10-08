@@ -198,6 +198,7 @@ logger:
 # Credits
 
 Special thanks to the following people for providing the information this custom integration is based on:
+- [zocker-160](https://github.com/zocker-160/xcom-protocol)
 - [Michael Jeffers](https://community.home-assistant.io/u/JeffersM)
 
 
