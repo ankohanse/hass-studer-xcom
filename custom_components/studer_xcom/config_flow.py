@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from enum import StrEnum
+from enum import Enum, StrEnum
 import logging
 import re
 from typing import Any, Callable
@@ -70,6 +70,10 @@ class NUMBERS_ACTION(StrEnum):
     DEL_NR = "del_via_nr"
     DONE = "done"
 
+class PROGRESS_PHASE(Enum):
+    MOXA_DISCOVER = 0
+    XCOM_DISCOVER = 2
+
 
 def translation_key(val):
     if type(val) is not str:
@@ -102,8 +106,10 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._dataset = None
 
         # Progress step
-        self._progress_tasks: list[asyncio.Task[None] | None] = []
-        self._progress_trace: list[bool] = []
+        self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
+        self._progress_steps: list[tuple] = None
+        self._progress_tasks: list[asyncio.Task[None] | None] = None
+        self._progress_trace: list[bool] = None
 
         # Add param or info via menu step
         self._menu_device = None
@@ -121,7 +127,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """
         Handle a flow initialized by the user.
         """        
-        return await self.async_step_client()
+        self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
+        return await self.async_step_progress()
     
     
     async def async_step_reconfigure(self, user_input: dict[str,Any] | None = None) -> FlowResult:
@@ -148,7 +155,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._polling_interval = self._reconfig_entry.options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)      
         
         # Show the config flow
-        return await self.async_step_client()
+        self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
+        return await self.async_step_progress()
     
     
     async def async_step_client(self, user_input: dict[str,Any] | None = None) -> FlowResult:
@@ -174,7 +182,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     self._errors[CONF_PORT] = f"Port is already in use by another Hub"
 
             if not self._errors:
-                _LOGGER.debug(f"Step client - next step discover")
+                _LOGGER.debug(f"Step client - next step discover Xcom")
+                self._progress_phase = PROGRESS_PHASE.XCOM_DISCOVER
                 return await self.async_step_progress()
 
         # Show the form to configure the port
@@ -202,36 +211,47 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_progress(self, user_input: dict[str,Any] | None = None) -> FlowResult:
         """
-        Step 2: discover reachable Xcom devices
+        Step 0: discover Moxa WebConfig (phase 1) 
+        Step 2: discover reachable Xcom devices (phase 2)
         """
         if self._errors:
-            if CONF_PORT in self._errors and not CONF_WEBCONFIG_URL in self._errors:
-                # special case, allow to continue to xcom_webconfig step
-                pass
-            else:
-                _LOGGER.debug(f"Step xcom_discover - revert to port input form")
-                self._progress_tasks = []
+            match self._progress_phase:
+                case PROGRESS_PHASE.MOXA_DISCOVER | PROGRESS_PHASE.XCOM_DISCOVER:
+                    self._progress_steps = None
+                    self._progress_tasks = None
+                    self._progress_trace = None
+                    return self.async_show_progress_done(next_step_id = "client")
 
-                return self.async_show_progress_done(next_step_id = "client")
+        # On first entry for the current phase, define the steps and tasks 
+        if not self._progress_steps:
+            match self._progress_phase:
+                case PROGRESS_PHASE.MOXA_DISCOVER:
+                    self._progress_steps = [ # (percent, action, function)
+                        (0,   "xcom_webconfig",  self._async_xcom_webconfig),
+                    ]
 
-        progress_steps = [ # (percent, action, function)
-            (0,   "xcom_connect",    self._async_xcom_connect),
-            (30,  "xcom_webconfig",  self._async_xcom_webconfig),
-            (50,  "xcom_devices",    self._async_xcom_devices),
-            (100, "xcom_disconnect", self._async_xcom_disconnect),
-        ]
-        if not self._progress_tasks:
-            self._progress_tasks = [None for idx in range(len(progress_steps))]
-            self._progress_trace = [True for idx in range(len(progress_steps))]
-            
+                case PROGRESS_PHASE.XCOM_DISCOVER:
+                    self._progress_steps = [ # (percent, action, function)
+                        (0,   "xcom_connect",    self._async_xcom_connect),
+                        (50,  "xcom_devices",    self._async_xcom_devices),
+                        (100, "xcom_disconnect", self._async_xcom_disconnect),
+                    ]
+
+                case _:
+                    raise NotImplementedError(f"progress_phase: {self._progress_phase.name}")
+
+            self._progress_tasks = [None for idx in range(len(self._progress_steps))]
+            self._progress_trace = [True for idx in range(len(self._progress_steps))]
+
+        # Run through all defined steps and tasks for the current phase            
         progress_task: asyncio.Task[None] | None = None
         progress_action: str = ''
         progress_percent: int = 0
 
-        for idx, (step_percent, step_action, step_func) in enumerate(progress_steps):
+        for idx, (step_percent, step_action, step_func) in enumerate(self._progress_steps):
             if not progress_task:
                 if not self._progress_tasks[idx]:
-                    _LOGGER.debug(f"Step progress - create task {step_action}, idx={idx}")
+                    _LOGGER.debug(f"Step progress - create task {step_action}, phase={self._progress_phase.name}, idx={idx}")
                     self._progress_tasks[idx] = self.hass.async_create_task(step_func())
 
                 if not self._progress_tasks[idx].done():
@@ -252,12 +272,23 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 description_placeholders = { "percent": f"{progress_percent}%" },
             )
         
-        # all discovery tasks done
-        _LOGGER.debug(f"Step progress - done")
-        _LOGGER.debug(f"found devices: {', '.join([device.code for device in self._devices])}")
-        self._progress_tasks = []
+        # all tasks done for the current phase
+        _LOGGER.debug(f"Step progress - done, phase={self._progress_phase.name}")
+        self._progress_steps = None
+        self._progress_tasks = None
+        self._progress_trace = None
 
-        return self.async_show_progress_done(next_step_id = "numbers")
+        match self._progress_phase:
+            case PROGRESS_PHASE.MOXA_DISCOVER:
+                return self.async_show_progress_done(next_step_id = "client")
+            
+            case PROGRESS_PHASE.XCOM_DISCOVER:
+                _LOGGER.debug(f"found devices: {', '.join([device.code for device in self._devices])}")
+
+                return self.async_show_progress_done(next_step_id = "numbers")
+            
+            case _:
+                raise NotImplementedError(f"progress_phase: {self._progress_phase}")
 
 
     async def _async_xcom_connect(self):
@@ -292,30 +323,19 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Try to (re-)discover the url for the Xcom Web Config so we can give a better error hint"""
 
         try:
-            # This step is only needed if connection to the Xcom client via the configured port failed.
-            if not CONF_PORT in self._errors:
-                await asyncio.sleep(1)  # Sleep because async_create_task cannot handle an immediate return
-                return
-                
-            _LOGGER.info("Discover Xcom Moxa Web Config")
+            _LOGGER.info(f"Discover Xcom Moxa Web Config")
             self._webconfig_url = await XcomDiscover.discoverMoxaWebConfig(self._webconfig_url)
 
             if self._webconfig_url:
-                _LOGGER.info("Discovered Xcom Moxa Web Config at {self._webconfig_url}")
+                _LOGGER.info(f"Discovered Xcom Moxa Web Config at {self._webconfig_url}")
             else:
-                _LOGGER.info("Could not determine Xcom Moxa Web Config url")
-
-            self._errors[CONF_WEBCONFIG_URL] = f"xcom_webconfig done" # Dummy error that is misused to indicate we passed through this step
+                _LOGGER.info(f"Could not determine Xcom Moxa Web Config url")
 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of Xcom Moxa Web Config: {e}")
             self._errors[CONF_WEBCONFIG_URL] = f"Unknown error: {e}"
         
         finally:
-            # Cleanup
-            if CONF_PORT in self._errors:
-                await self._async_xcom_disconnect(is_task=False)
-
             # Ensure we go back to the flow
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
