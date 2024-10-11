@@ -130,14 +130,15 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
             case FORMAT.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
-                attr_precision = int(math.floor(math.log10(1.0 / weight)))
-                attr_val = round(float(entity.value) * weight, attr_precision) if entity.value!=None else None
+                attr_precision = 3
+                attr_digits = 3
+                attr_val = round(float(entity.value) * weight, attr_digits) if entity.value!=None else None
                 attr_unit = self.get_unit()
 
             case FORMAT.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
-                attr_precision = 0
+                attr_precision = None
                 attr_val = int(entity.value) * weight if entity.value!=None else None
                 attr_unit = self.get_unit()
                     

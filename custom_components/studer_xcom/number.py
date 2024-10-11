@@ -140,16 +140,17 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             case FORMAT.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
-                attr_precision = int(math.floor(math.log10(1.0 / weight)))
+                attr_precision = 3
+                attr_digits = 3
                 attr_min = float(entity.min) * weight if entity.min is not None else None
                 attr_max = float(entity.max) * weight if entity.max is not None else None
-                attr_val = round(float(value) * weight, attr_precision) if value is not None else None
+                attr_val = round(float(value) * weight, attr_digits) if value is not None else None
                 attr_step = entity.inc
 
             case FORMAT.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
-                attr_precision = 0
+                attr_precision = None
                 attr_min = int(entity.min) * weight if entity.min is not None else None
                 attr_max = int(entity.max) * weight if entity.max is not None else None
                 attr_val = int(value) * weight if entity.value is not None else None
@@ -187,10 +188,11 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             self._xcom_ram_state = entity.valueModified
 
         if is_create or self._attr_native_value != attr_val:
-            self._attr_native_value = attr_val
             self._attr_state = attr_val
-            
+            self._attr_native_value = attr_val
             self._attr_native_unit_of_measurement = self.get_unit()
+            self._attr_suggested_display_precision = attr_precision
+
             self._attr_icon = self.get_icon()
             changed = True
 
