@@ -96,6 +96,7 @@ SWITCH_VALUES_ALL = SWITCH_VALUES_ON + SWITCH_VALUES_OFF
 REQ_TIMEOUT = 3 # seconds
 REQ_RETRIES = 3 
 REQ_BURST_SIZE = 10 # do 10 requests, then wait a second, then the next 10 requests
+CACHE_WRITE_PERIOD = 60*60 # seconds
 
 # Diagnostics
 DIAGNOSTICS_REDACT = { 'conf_secret1', 'conf_secret2' }

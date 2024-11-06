@@ -48,6 +48,7 @@ from .const import (
     REQ_RETRIES,
     REQ_TIMEOUT,
     REQ_BURST_SIZE,
+    CACHE_WRITE_PERIOD,
 )
 from aioxcom import (
     XcomApiTcp,
@@ -69,6 +70,7 @@ from aioxcom import (
 _LOGGER = logging.getLogger(__name__)
 
 MODIFIED_PARAMS = "ModifiedParams"
+MODIFIED_PARAMS_TS = "ModifiedParamsTs"
 
 
 class StuderDeviceConfig(XcomDiscoveredDevice):
@@ -243,8 +245,8 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._hass = hass
         self._store_key = self._install_id
         self._store = StuderCoordinatorStore(hass, self._store_key)
-        self._modified_map: dict[str,Any] = {}
-        self._modified_map_ts = datetime.now()
+        self._cache = None
+        self._cache_last_write = datetime.min
         
         # Diagnostics gathering
         self._diag_requests = {}
@@ -259,8 +261,14 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._entity_map: dict[str,StuderEntityData] = await self._create_entity_map()
         self._entity_map_ts = datetime.now()
         
-        self._modified_map = await self._async_fetch_from_cache(MODIFIED_PARAMS)
-        self._modified_map_ts = datetime.now()
+        # Make sure our cache is available
+        if self._cache is None:
+            if self._store:
+                _LOGGER.debug(f"Read persisted cache")
+                store = await self._store.async_get_data() or {}
+                self._cache = store.get("cache", {})
+            else:
+                self._cache = {}
 
         return await self._api.start()
 
@@ -362,12 +370,22 @@ class StuderCoordinator(DataUpdateCoordinator):
             # (for instance in systems with more than one inverter)
             await self._async_request_all_data()
 
-            # update cached data for diagnostics
-            #await self._async_update_cache(f"entities", self._entity_map)
+            # Periodically persist the cache
+            if self._hass and \
+               self._store and \
+               self._cache and \
+               (datetime.now() - self._cache_last_write).total_seconds() > CACHE_WRITE_PERIOD:
+                
+                _LOGGER.debug(f"Persist cache")
+                self._cache_last_write = datetime.now()
+
+                store = await self._store.async_get_data() or {}
+                store["cache"] = self._cache
+                await self._store.async_set_data(store)
 
             # return updated data
             return self._get_data()
-        
+            
         except asyncio.TimeoutError as err:
             raise UpdateFailed(f"Timeout while communicating with API: {err}")
 
@@ -426,66 +444,48 @@ class StuderCoordinator(DataUpdateCoordinator):
 
 
     async def _async_update_cache(self, context, data, force = False):
-        # worker function
-        async def _async_worker(self, context, data):
-            if not self._store:
-                return
-            
-            # Retrieve cache file contents
-            store = await self._store.async_get_data() or {}
-            cache = store.get("cache", {})
-
-            data_old = cache.get(context, {})
-
-            # We only update the cached contents once a day to prevent too many writes of unchanged data
-            ts_str = data_old.get("ts", "")
-            ts_old = datetime.fromisoformat(ts_str) if ts_str else datetime.min
-            ts_new = datetime.now()
-
-            if not force and (ts_new - ts_old).total_seconds() < 86400-300:   # 1 day minus 5 minutes
-                # Not expired yet
-                return
-
-            _LOGGER.debug(f"Update cache: {context} to {data}")
-        
-            # Update and write new cache file contents
-            cache[context] = { "ts": ts_new } | data
-            
-            store["cache"] = cache
-            await self._store.async_set_data(store)
-
-        # Create the worker task to update diagnostics in the background,
-        # but do not let main loop wait for it to finish
-        if self._hass:
+        """
+        Update the memory cache.
+        Persisted cache is saved periodicaly by another function
+        """
+        if self._cache:
             data["ts"] = datetime.now()
-            self._hass.async_create_task(_async_worker(self, context, data))
+            self._cache[context] = data
 
     
     async def _async_fetch_from_cache(self, context):
-        if not self._store:
+        """
+        Fetch from the memory cache
+        """
+        if self._cache:
+            _LOGGER.debug(f"Fetch from cache: {context}")
+            return self._cache.get(context, {})
+        else:
             return {}
-        
-        store = await self._store.async_get_data() or {}
-        cache = store.get("cache", {})
-        data = cache.get(context, {})
-
-        _LOGGER.debug(f"Fetch from cache: {context}, data: {data}")
-        
-        return data
     
 
     def _getModified(self, entity: StuderEntityData) -> Any:
-        return self._modified_map.get(entity.object_id, None)
+        """
+        Check if a modified param is available
+        """
+        modified_params = self._cache.get(MODIFIED_PARAMS, {})
+
+        return modified_params.get(entity.object_id, None)
 
 
     async def _addModified(self, entity: StuderEntityData, value: Any):
         """
         Remember a modified params value. Persist it in cache.
         """
-        self._modified_map[entity.object_id] = value
-        self._modified_map_ts = datetime.now()
+        if self._cache:
+            modified_params = self._cache.get(MODIFIED_PARAMS, {})
+            modified_params[entity.object_id] = value
 
-        await self._async_update_cache(MODIFIED_PARAMS, self._modified_map, force=True)
+            self._cache[MODIFIED_PARAMS] = modified_params
+            self._cache[MODIFIED_PARAMS_TS] = datetime.now()
+
+            # Trigger write of cache
+            self._cache_last_write = datetime.min
 
     
     async def _addDiagnostic(self, diag_key: str, success: bool, e: Exception|None = None):
@@ -551,9 +551,8 @@ class StuderCoordinator(DataUpdateCoordinator):
                 "install_id": self._install_id,
                 "entity_map_ts": str(self._entity_map_ts),
                 "entity_map": entity_map,
-                "modified_map_ts": str(self._modified_map_ts),
-                "modified_map": self._modified_map,
             },
+            "cache": self._cache,
             "diagnostics": {
                 "requests": self._diag_requests,
                 "statistics": self._diag_statistics | diag_api.get("statistics", {}),
