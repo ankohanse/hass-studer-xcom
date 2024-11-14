@@ -13,7 +13,7 @@ This component connects directly over the local network using the Studer xcom pr
 The custom component was tested with:
 - Xtender XTH 8000-48 (but should also work for other XTH, XTS and XTM)
 - Xcom-CAN (BSP connection to a third party BMS)
-- Xcom-LAN (which actually is a Xcom232i with a Moxy NPort 5110A)
+- Xcom-LAN (which actually is a Xcom232i with a Moxa NPort 5110A)
 - RCC-03
 
 It should also be able to detect and handle
