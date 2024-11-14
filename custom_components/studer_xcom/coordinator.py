@@ -8,7 +8,7 @@ import logging
 import re
 
 from collections import namedtuple
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 
 from homeassistant.components.diagnostics import REDACTED
@@ -27,6 +27,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from homeassistant.const import (
     CONF_PORT, 
@@ -286,6 +287,11 @@ class StuderCoordinator(DataUpdateCoordinator):
     def is_temp(self) -> bool:
         return self._is_temp
     
+
+    @property
+    def time_zone(self) -> tzinfo | None:
+        return dt_util.get_time_zone(self._hass.config.time_zone)
+
 
     async def _create_entity_map(self):
         entity_map: dict[str,StuderEntityData] = {}

@@ -79,8 +79,8 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state = None
-        self._set_state = None
+        self._xcom_flash_state = None
+        self._xcom_ram_state = None
 
         # Create all attributes
         self._update_attributes(entity, True)
@@ -227,5 +227,4 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             self._attr_native_value = value
             self._xcom_ram_state = entity_value
             self.async_write_ha_state()
-            _LOGGER.debug(f"after modify data for entity {entity.device_code} {entity.nr}. _set_state={self._set_state}")
 

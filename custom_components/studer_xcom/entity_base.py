@@ -145,7 +145,7 @@ class StuderEntityHelper:
         Determine what platform an entry should be added into
         """
         
-        # Is it a switch/select/number config or control entity? 
+        # Is it a switch/select/number/time config or control entity? 
         if entity.obj_type == OBJ_TYPE.PARAMETER:
             match entity.format:
                 case FORMAT.BOOL:
@@ -163,6 +163,8 @@ class StuderEntityHelper:
                 case FORMAT.INT32:
                     if entity.default=="S" or entity.min=="S" or entity.max=="S":
                         return Platform.BUTTON
+                    elif entity.unit == "Seconds":
+                        return Platform.DATETIME
                     else:
                         return Platform.NUMBER
 

@@ -41,6 +41,7 @@ from .const import (
     CONF_OPTIONS,
     CONF_NR,
     CONF_ADDRESS,
+    ATTR_XCOM_STATE,
 )
 from .coordinator import (
     StuderCoordinatorFactory,
@@ -83,6 +84,10 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         
         self._coordinator = coordinator
         
+        # Custom extra attributes for the entity
+        self._attributes: dict[str, str | list[str]] = {}
+        self._xcom_state = None
+
         # Create all attributes
         self._update_attributes(entity, True)
     
@@ -103,6 +108,15 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
     def name(self) -> str:
         """Return the name of the entity."""
         return self._attr_name
+        
+        
+    @property
+    def extra_state_attributes(self) -> dict[str, str | list[str]]:
+        """Return the state attributes."""
+        if self._xcom_state:
+            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
+
+        return self._attributes        
     
     
     @callback
@@ -173,6 +187,9 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
             changed = True
         
         # update value if it has changed
+        if is_create or self._xcom_state != entity.value:
+            self._xcom_state = entity.value
+        
         if is_create or self._attr_native_value != attr_val:
             if not is_create:
                 _LOGGER.debug(f"Sensor change value {self.object_id} from {self._attr_native_value} to {attr_val}")

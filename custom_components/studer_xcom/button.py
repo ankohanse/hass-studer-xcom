@@ -75,11 +75,6 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
 
         self._coordinator = coordinator
 
-        # Custom extra attributes for the entity
-        self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state = None
-        self._set_state = None
-
         # Create all attributes
         self._update_attributes(entity, True)
     

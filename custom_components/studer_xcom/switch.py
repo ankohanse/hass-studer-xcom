@@ -89,7 +89,6 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         self._xcom_flash_state = None
         self._xcom_ram_state = None
         self._set_is_on = None
-        self._set_state = None
 
         # Create all attributes
         self._update_attributes(entity, True)

@@ -33,6 +33,7 @@ PLATFORMS: list[Platform] = [
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SWITCH,
+    Platform.DATETIME,
 ]
 
 HUB = "Hub"
@@ -79,6 +80,7 @@ PREFIX_ID = "studer"
 PREFIX_NAME = "Studer"
 
 # Custom extra attributes to entities
+ATTR_XCOM_STATE = "xcom_state"
 ATTR_XCOM_FLASH_STATE = "xcom_flash_state"
 ATTR_XCOM_RAM_STATE = "xcom_ram_state"
 

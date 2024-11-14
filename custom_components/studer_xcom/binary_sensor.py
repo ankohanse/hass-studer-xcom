@@ -42,6 +42,7 @@ from .const import (
     BINARY_SENSOR_VALUES_ON,
     BINARY_SENSOR_VALUES_OFF,
     BINARY_SENSOR_VALUES_ALL,
+    ATTR_XCOM_STATE,
 )
 from .coordinator import (
     StuderCoordinatorFactory,
@@ -96,6 +97,10 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         
         self._coordinator = coordinator
         
+        # Custom extra attributes for the entity
+        self._attributes: dict[str, str | list[str]] = {}
+        self._xcom_state = None
+
         # Create all attributes
         self._update_attributes(entity, True)
     
@@ -116,6 +121,15 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
     def name(self) -> str:
         """Return the name of the entity."""
         return self._attr_name
+        
+        
+    @property
+    def extra_state_attributes(self) -> dict[str, str | list[str]]:
+        """Return the state attributes."""
+        if self._xcom_state:
+            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
+
+        return self._attributes        
     
     
     @callback
@@ -182,6 +196,11 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
             changed = True
         
         # update value if it has changed
+        if is_create \
+        or (self._xcom_state != entity.value):
+            
+            self._xcom_state = entity.value
+        
         if is_create \
         or (self._attr_is_on != is_on):
             
