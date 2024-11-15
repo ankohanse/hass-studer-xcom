@@ -53,12 +53,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     Setting up the adding and updating of number entities
     """
     helper = StuderEntityHelperFactory.create(hass, config_entry)
-    await helper.async_setup_entry(Platform.DATETIME, StuderTime, async_add_entities)
+    await helper.async_setup_entry(Platform.DATETIME, StuderDateTime, async_add_entities)
 
 
-class StuderTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
+class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
     """
-    Representation of a Studer Time Entity.
+    Representation of a Studer DateTime Entity.
     
     Could be a configuration setting that is part of a pump like ESybox, Esybox.mini
     Or could be part of a communication module like DConnect Box/Box2
@@ -144,7 +144,7 @@ class StuderTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
                     attr_val = None
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a time entity")
+                _LOGGER.error(f"Unexpected format ({entity.format}) for a datetime entity")
                 return
         
         # update creation-time only attributes
@@ -192,7 +192,7 @@ class StuderTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
                 entity_value = int(ts_local)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
+                _LOGGER.error(f"Unexpected format ({entity.format}) for a datetime entity")
                 return
         
         _LOGGER.debug(f"Set {self.entity_id} to {value} ({entity_value})")
