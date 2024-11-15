@@ -165,6 +165,8 @@ class StuderEntityHelper:
                         return Platform.BUTTON
                     elif entity.unit == "Seconds":
                         return Platform.DATETIME
+                    elif entity.unit == "Minutes":
+                        return Platform.TIME
                     else:
                         return Platform.NUMBER
 

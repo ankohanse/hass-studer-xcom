@@ -34,6 +34,7 @@ PLATFORMS: list[Platform] = [
     Platform.SELECT,
     Platform.SWITCH,
     Platform.DATETIME,
+    Platform.TIME,
 ]
 
 HUB = "Hub"

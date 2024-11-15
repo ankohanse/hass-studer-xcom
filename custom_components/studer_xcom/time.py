@@ -4,9 +4,8 @@ import math
 
 from homeassistant import config_entries
 from homeassistant import exceptions
-from homeassistant.components.number import NumberEntity
-from homeassistant.components.number import NumberMode
-from homeassistant.components.number import ENTITY_ID_FORMAT
+from homeassistant.components.time import TimeEntity
+from homeassistant.components.time import ENTITY_ID_FORMAT
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
@@ -20,9 +19,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity_registry import async_get
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
-from datetime import timedelta
-from datetime import datetime
+from datetime import time, timedelta
 
 from collections import defaultdict
 from collections import namedtuple
@@ -35,6 +34,10 @@ from .const import (
     MANUFACTURER,
     ATTR_XCOM_FLASH_STATE,
     ATTR_XCOM_RAM_STATE,
+)
+from .coordinator import (
+    StuderCoordinator,
+    StuderEntityData,
 )
 from .entity_base import (
     StuderEntityHelperFactory,
@@ -54,33 +57,33 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     Setting up the adding and updating of number entities
     """
     helper = StuderEntityHelperFactory.create(hass, config_entry)
-    await helper.async_setup_entry(Platform.NUMBER, StuderNumber, async_add_entities)
+    await helper.async_setup_entry(Platform.TIME, StuderTime, async_add_entities)
 
 
-class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
+class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
     """
-    Representation of a Studer Number Entity.
+    Representation of a Studer Time Entity.
     
     Could be a configuration setting that is part of a pump like ESybox, Esybox.mini
     Or could be part of a communication module like DConnect Box/Box2
     """
     
-    def __init__(self, coordinator, install_id, entity) -> None:
+    def __init__(self, coordinator: StuderCoordinator, install_id, entity: StuderEntityData) -> None:
         """ Initialize the sensor. """
         CoordinatorEntity.__init__(self, coordinator)
         StuderEntity.__init__(self, coordinator, entity)
         
         # The unique identifier for this sensor within Home Assistant
-        self.object_id = entity.object_id
-        self.entity_id = ENTITY_ID_FORMAT.format(entity.unique_id)
-        self.install_id = install_id
+        self.object_id: str = entity.object_id
+        self.entity_id: str = ENTITY_ID_FORMAT.format(entity.unique_id)
+        self.install_id: str = install_id
         
-        self._coordinator = coordinator
+        self._coordinator: StuderCoordinator = coordinator
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_flash_state = None
-        self._xcom_ram_state = None
+        self._xcom_flash_state: str = None
+        self._xcom_ram_state: str = None
 
         # Create all attributes
         self._update_attributes(entity, True)
@@ -114,15 +117,16 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
 
         return self._attributes        
     
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        entity_map = self._coordinator.data
+        entity_map: dict[str, StuderEntityData] = self._coordinator.data
         
         # find the correct device and status corresponding to this sensor
-        status = entity_map.get(self.object_id)
+        status: StuderEntityData|None = entity_map.get(self.object_id)
 
         # Update any attributes
         if status:
@@ -130,34 +134,26 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 self.async_write_ha_state()
     
     
-    def _update_attributes(self, entity, is_create):
+    def _update_attributes(self, entity: StuderEntityData, is_create: bool):
         
         # Process any changes
         changed = False
         value = entity.valueModified if entity.valueModified is not None else entity.value
 
         match entity.format:
-            case FORMAT.FLOAT:
-                # Convert to float
-                weight = self._entity.weight * self._unit_weight
-                attr_precision = 3
-                attr_digits = 3
-                attr_min = float(entity.min) * weight if entity.min is not None else None
-                attr_max = float(entity.max) * weight if entity.max is not None else None
-                attr_val = round(float(value) * weight, attr_digits) if value is not None else None
-                attr_step = entity.inc
-
             case FORMAT.INT32:
-                # Convert to int
-                weight = self._entity.weight * self._unit_weight
-                attr_precision = None
-                attr_min = int(entity.min) * weight if entity.min is not None else None
-                attr_max = int(entity.max) * weight if entity.max is not None else None
-                attr_val = int(value) * weight if value is not None else None
-                attr_step = self.get_number_step()
+                # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
+                # TimeEntity expects time object and can only be between 00:00 and 23:59
+                # We sneakily replace value 1440 (24:00) into 23:59
+                if value is None: 
+                    attr_val = None
+                elif int(value) >= 1440:
+                    attr_val = time(23, 59).replace(tzinfo=self._coordinator.time_zone)
+                else:
+                    attr_val = time(int(value // 60), int(value % 60)).replace(tzinfo=self._coordinator.time_zone)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
+                _LOGGER.error(f"Unexpected format ({entity.format}) for a time entity")
                 return
         
         # update creation-time only attributes
@@ -168,14 +164,8 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             self._attr_name = entity.name
             self._name = entity.name
             
-            self._attr_mode = NumberMode.BOX
-            self._attr_device_class = self.get_number_device_class()
+            #self._attr_device_class = self.get_number_device_class()
             self._attr_entity_category = self.get_entity_category()
-            if attr_min:
-                self._attr_native_min_value = attr_min
-            if attr_max:
-                self._attr_native_max_value = attr_max
-            self._attr_native_step = attr_step
             
             self._attr_device_info = DeviceInfo(
                identifiers = {(DOMAIN, entity.device_id)},
@@ -186,12 +176,10 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         if is_create or self._xcom_flash_state != entity.value:
             self._xcom_flash_state = entity.value
             self._xcom_ram_state = entity.valueModified
-
+        
         if is_create or self._attr_native_value != attr_val:
             self._attr_state = attr_val
             self._attr_native_value = attr_val
-            self._attr_native_unit_of_measurement = self.get_unit()
-            self._attr_suggested_display_precision = attr_precision
 
             self._attr_icon = self.get_icon()
             changed = True
@@ -199,32 +187,37 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         return changed    
     
     
-    async def async_set_native_value(self, value: float) -> None:
-        """Change the selected option"""
+    async def async_set_value(self, value: time) -> None:
+        """Change the date/time"""
         
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
+        entity_map: dict[str, StuderEntityData] = self._coordinator.data
+        entity: StuderEntityData = entity_map.get(self.object_id)
 
         match entity.format:
-            case FORMAT.FLOAT:
-                # Convert to float
-                weight = self._entity.weight * self._unit_weight
-                entity_value = float(value / weight)
-
             case FORMAT.INT32:
-                # Convert to int
-                weight = self._entity.weight * self._unit_weight
-                entity_value = int(value / weight)
+                # TimeEntity is a time object and can only be between 00:00 and 23:59
+                # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
+                
+                minutes = value.hour * 60 + value.minute
+                if minutes < 1439:
+                    entity_value = minutes
+                    trace_value = value
+                else:
+                    # We sneakily replace input 23:59 into 1440 (24:00)
+                    entity_value = 1440
+                    trace_value = "24:00"
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
+                _LOGGER.error(f"Unexpected format ({entity.format}) for a time entity")
                 return
         
-        _LOGGER.debug(f"Set {self.entity_id} to {value} {self._attr_unit or ""} ({entity_value})")
+        _LOGGER.debug(f"Set {self.entity_id} to {trace_value} ({entity_value})")
 
         success = await self._coordinator.async_modify_data(entity, entity_value)
         if success:
             self._attr_native_value = value
             self._xcom_ram_state = entity_value
             self.async_write_ha_state()
+
+            # No need to update self._xcom_ram_state for this entity
 
