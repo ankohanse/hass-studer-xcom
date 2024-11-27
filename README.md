@@ -10,15 +10,16 @@
 [Home Assistant](https://home-assistant.io/) custom component for retrieving sensor information from Studer-Innotec devices.
 This component connects directly over the local network using the Studer xcom protocol.
 
-The custom component was tested with:
-- Xtender XTH 8000-48 (but should also work for other XTH, XTS and XTM)
+The custom component is comfirmed to be compatible with:
+- Xtender XTH 8000-48, XTM 4000-48
 - Xcom-CAN (BSP connection to a third party BMS)
-- Xcom-LAN (which actually is a Xcom232i with a Moxa NPort 5110A)
+- Xcom-LAN (which actually is a Xcom232i with a Moxy NPort 5110A)
+- BMS
 - RCC-03
+- VarioTrack
 
 It should also be able to detect and handle
-- Studer BMS
-- VarioTrack
+- Xtender (any other XTH, XTS and XTM models)
 - VarioString
 - RCC-02
 
