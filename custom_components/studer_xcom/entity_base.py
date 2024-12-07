@@ -40,6 +40,7 @@ from .coordinator import (
 )
 from aioxcom import (
     FORMAT,
+    LEVEL,
     OBJ_TYPE,
 )
 
@@ -147,6 +148,9 @@ class StuderEntityHelper:
         
         # Is it a switch/select/number/time config or control entity? 
         if entity.obj_type == OBJ_TYPE.PARAMETER:
+            if entity.level==LEVEL.VO:
+                return Platform.SENSOR
+            
             match entity.format:
                 case FORMAT.BOOL:
                     return Platform.SWITCH
@@ -408,7 +412,7 @@ class StuderEntity(Entity):
             
         # Return DIAGNOSTIC for some specific entries associated with others that are DIAGNOSTIC
         # Leads to the entities being added under 'Diagnostic'
-        nrs_diag = []
+        nrs_diag = [5012]
         if self._entity.nr in nrs_diag:
             return EntityCategory.DIAGNOSTIC
         
