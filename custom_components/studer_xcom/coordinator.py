@@ -246,7 +246,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._hass = hass
         self._store_key = self._install_id
         self._store = StuderCoordinatorStore(hass, self._store_key)
-        self._cache = None
+        self._cache = {}
         self._cache_last_write = datetime.min
         
         # Diagnostics gathering
@@ -263,18 +263,14 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._entity_map_ts = datetime.now()
         
         # Make sure our cache is available
-        if self._cache is None:
-            if self._store:
-                _LOGGER.debug(f"Read persisted cache")
-                store = await self._store.async_get_data() or {}
-                self._cache = store.get("cache", {})
-            else:
-                self._cache = {}
+        await self._async_read_cache()
 
+        # Start our Api
         return await self._api.start()
 
     
     async def stop(self):
+        # Stop our Api
         await self._api.stop()
 
     
@@ -377,17 +373,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             await self._async_request_all_data()
 
             # Periodically persist the cache
-            if self._hass and \
-               self._store and \
-               self._cache and \
-               (datetime.now() - self._cache_last_write).total_seconds() > CACHE_WRITE_PERIOD:
-                
-                _LOGGER.debug(f"Persist cache")
-                self._cache_last_write = datetime.now()
-
-                store = await self._store.async_get_data() or {}
-                store["cache"] = self._cache
-                await self._store.async_set_data(store)
+            await self._async_persist_cache()
 
             # return updated data
             return self._get_data()
@@ -449,26 +435,26 @@ class StuderCoordinator(DataUpdateCoordinator):
         return False
 
 
-    async def _async_update_cache(self, context, data, force = False):
-        """
-        Update the memory cache.
-        Persisted cache is saved periodicaly by another function
-        """
-        if self._cache:
-            data["ts"] = datetime.now()
-            self._cache[context] = data
-
-    
-    async def _async_fetch_from_cache(self, context):
-        """
-        Fetch from the memory cache
-        """
-        if self._cache:
-            _LOGGER.debug(f"Fetch from cache: {context}")
-            return self._cache.get(context, {})
+    async def _async_read_cache(self):
+        if self._store:
+            _LOGGER.debug(f"Read persisted cache")
+            store = await self._store.async_get_data() or {}
+            self._cache = store.get("cache", {})
         else:
-            return {}
-    
+            _LOGGER.warning(f"Using empty cache; no store available to read persisted cache from")
+            self._cache = {}
+
+
+    async def _async_persist_cache(self):
+        if self._store and (datetime.now() - self._cache_last_write).total_seconds() > CACHE_WRITE_PERIOD:
+            
+            _LOGGER.debug(f"Persist cache")
+            self._cache_last_write = datetime.now()
+
+            store = await self._store.async_get_data() or {}
+            store["cache"] = self._cache
+            await self._store.async_set_data(store)
+
 
     def _getModified(self, entity: StuderEntityData) -> Any:
         """
@@ -483,15 +469,14 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         Remember a modified params value. Persist it in cache.
         """
-        if self._cache:
-            modified_params = self._cache.get(MODIFIED_PARAMS, {})
-            modified_params[entity.object_id] = value
+        modified_params = self._cache.get(MODIFIED_PARAMS, {})
+        modified_params[entity.object_id] = value
 
-            self._cache[MODIFIED_PARAMS] = modified_params
-            self._cache[MODIFIED_PARAMS_TS] = datetime.now()
+        self._cache[MODIFIED_PARAMS] = modified_params
+        self._cache[MODIFIED_PARAMS_TS] = datetime.now()
 
-            # Trigger write of cache
-            self._cache_last_write = datetime.min
+        # Trigger write of cache
+        self._cache_last_write = datetime.min
 
     
     async def _addDiagnostic(self, diag_key: str, success: bool, e: Exception|None = None):
