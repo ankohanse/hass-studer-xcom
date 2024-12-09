@@ -441,19 +441,25 @@ class StuderCoordinator(DataUpdateCoordinator):
             store = await self._store.async_get_data() or {}
             self._cache = store.get("cache", {})
         else:
-            _LOGGER.warning(f"Using empty cache; no store available to read persisted cache from")
+            _LOGGER.warning(f"Using empty cache; no store available to read from")
             self._cache = {}
 
 
     async def _async_persist_cache(self):
-        if self._store and (datetime.now() - self._cache_last_write).total_seconds() > CACHE_WRITE_PERIOD:
+        if self._is_temp:
+            return
+        
+        if self._store:
+            if (datetime.now() - self._cache_last_write).total_seconds() > CACHE_WRITE_PERIOD:
             
-            _LOGGER.debug(f"Persist cache")
-            self._cache_last_write = datetime.now()
+                _LOGGER.debug(f"Persist cache")
+                self._cache_last_write = datetime.now()
 
-            store = await self._store.async_get_data() or {}
-            store["cache"] = self._cache
-            await self._store.async_set_data(store)
+                store = await self._store.async_get_data() or {}
+                store["cache"] = self._cache
+                await self._store.async_set_data(store)
+        else:
+            _LOGGER.warning(f"Skip persisting cache; no store available to write to")
 
 
     def _getModified(self, entity: StuderEntityData) -> Any:
