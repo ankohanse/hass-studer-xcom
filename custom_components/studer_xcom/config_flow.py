@@ -360,11 +360,11 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._devices = []
             for device in devices:
                 # In reconfigure, did we already have a deviceConfig for this device?
-                device_old = next((d for d in self._devices_old if d.address == device.addr), None)
+                device_old = next((d for d in self._devices_old if StuderDeviceConfig.match(d, device)), None)
 
                 self._devices.append(StuderDeviceConfig(
                     code = device.code,
-                    address = device.addr,
+                    addr = device.addr,
                     family_id = device.family_id,
                     family_model = device.family_model,
                     device_model = device.device_model,

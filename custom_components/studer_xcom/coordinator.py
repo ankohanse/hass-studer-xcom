@@ -75,10 +75,10 @@ MODIFIED_PARAMS_TS = "ModifiedParamsTs"
 
 
 class StuderDeviceConfig(XcomDiscoveredDevice):
-    def __init__(self, code, address, family_id, family_model, device_model, hw_version, sw_version, fid, numbers):
+    def __init__(self, code, addr, family_id, family_model, device_model, hw_version, sw_version, fid, numbers):
         # From XcomDiscoveredDevice
         self.code = code
-        self.address = address
+        self.addr = addr
         self.family_id = family_id
         self.family_model = family_model
         self.device_model = device_model
@@ -88,6 +88,19 @@ class StuderDeviceConfig(XcomDiscoveredDevice):
 
         # For StuderDeviceConfig
         self.numbers = numbers
+
+    @staticmethod
+    def match(a, b):
+        if not isinstance(a, XcomDiscoveredDevice) or not isinstance(b, XcomDiscoveredDevice):
+            return False
+        
+        # Either match code or match addr and family_id
+        if a.code == b.code:
+            return True
+        if a.addr == b.addr and a.family_id == b.family_id:
+            return True
+        
+        return False
 
     @staticmethod
     def from_dict(d: dict[str,Any]):
@@ -107,7 +120,7 @@ class StuderDeviceConfig(XcomDiscoveredDevice):
         """Return dictionary version of this device config."""
         return {
             "code": self.code,
-            "address": self.address,
+            "address": self.addr,
             "family_id": self.family_id,
             "family_model": self.family_model,
             "device_model": self.device_model,
@@ -118,7 +131,7 @@ class StuderDeviceConfig(XcomDiscoveredDevice):
         }
     
     def __str__(self) -> str:
-        return f"StuderDeviceConfig(address={self.address}, code={self.code}, family_id={self.family_id}, numbers={self.numbers})"
+        return f"StuderDeviceConfig(code={self.code}, family_id={self.family_id}, address={self.addr}, numbers={self.numbers})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -323,7 +336,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 # Device associated with this entity
                 device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code),
                 device_code = device.code,
-                device_addr = device.address,
+                device_addr = device.addr,
             )
             return entity
         
