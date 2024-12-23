@@ -126,7 +126,10 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str,Any] | None = None) -> FlowResult:
         """
         Handle a flow initialized by the user.
-        """        
+        """ 
+        _LOGGER.debug(f"Step user - start config flow")
+
+        _LOGGER.debug(f"Step user - next step discover Moxa")
         self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
         return await self.async_step_progress()
     
@@ -135,7 +138,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """
         Handle a flow to reconfigure
         """ 
-
+        _LOGGER.debug(f"Step reconfigure - start config flow")
         self._in_reconfigure = True
 
         # Load existing values for config
@@ -155,6 +158,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._polling_interval = self._reconfig_entry.options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)      
         
         # Show the config flow
+        _LOGGER.debug(f"Step reconfigure - next step discover Moxa")
         self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
         return await self.async_step_progress()
     
