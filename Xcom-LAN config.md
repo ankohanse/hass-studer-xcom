@@ -10,6 +10,7 @@ The Studer Xcom-LAN is able to simultaneously send data to the Studer online por
 The Moxa Web Config can be used to configure the Xcom-LAN / Moxa device. To open the web-config, click on the link that was detect during the first step of the integration configuration
 
 ![setup_step_1](documentation/setup_client_moxa.png)
+
 Alternatively, follow the steps as described in section [Device Search Utiliy](#device-search-utility)
 
   - In the Moxa Web Config:
