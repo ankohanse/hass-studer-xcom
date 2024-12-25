@@ -8,7 +8,7 @@
           "port": "Port"
         },
         "data_description": {
-          "port": "Use the port as set in the local {moxa_config_url}.\n\nCheck document [Xcom-LAN config.md]({moxa_readme_url}) for details."
+          "port": "Use the port as set in the local {moxa_config_url}.\n\nCheck document {moxa_readme_url} for details."
         }
       },
       "progress": {

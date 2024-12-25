@@ -206,7 +206,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             }),
             description_placeholders = {
                 "moxa_config_url": f"[Xcom Moxa Web Config]({self._webconfig_url})" if self._webconfig_url else "Xcom Moxa Web Config",
-                "moxa_readme_url": MOXA_README_URL,
+                "moxa_readme_url": f"[Xcom-LAN config.md]({MOXA_README_URL})",
                 "readme_url": INTEGRATION_README_URL
             },
             errors = self._errors
