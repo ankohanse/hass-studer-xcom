@@ -303,10 +303,17 @@ class StuderCoordinator(DataUpdateCoordinator):
 
 
     async def _create_entity_map(self):
+
         entity_map: dict[str,StuderEntityData] = {}
 
+        # No need to load XcomDataset from file if no device numbers need resolving
+        if not self._devices:
+            return entity_map
+
+        # Load XcomDataset from file
         dataset = await XcomDataset.create(self._voltage)
 
+        # Resolve all numbers for each device
         for device in self._devices:
             family = XcomDeviceFamilies.getById(device.family_id)
 
