@@ -92,7 +92,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._voltage: str = DEFAULT_VOLTAGE
         self._port: int = DEFAULT_PORT
         self._webconfig_url: str = None
-        self._user_level: str = DEFAULT_USER_LEVEL
+        self._user_level: LEVEL = DEFAULT_USER_LEVEL
         self._devices: list[StuderDeviceConfig] = []
         self._devices_old: list[StuderDeviceConfig] = []
 
@@ -146,7 +146,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         self._voltage = self._reconfig_entry.data.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
         self._port = self._reconfig_entry.data.get(CONF_PORT, DEFAULT_PORT)
-        self._user_level = self._reconfig_entry.data.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
+
+        level = self._reconfig_entry.data.get(CONF_USER_LEVEL, "")
+        self._user_level = LEVEL.from_str(level, DEFAULT_USER_LEVEL)
 
         self._webconfig_url = self._reconfig_entry.data.get(CONF_WEBCONFIG_URL, "")
         devices_data = self._reconfig_entry.data.get(CONF_DEVICES, [])
@@ -170,8 +172,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step client - handle input {user_input}")
-            voltage = user_input.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
-            self._voltage = next((v for v in VOLTAGE if translation_key(v) == voltage), DEFAULT_VOLTAGE)
+            voltage_key = user_input.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
+            self._voltage = next((v for v in VOLTAGE if translation_key(v) == voltage_key), DEFAULT_VOLTAGE)
             self._port = user_input.get(CONF_PORT, DEFAULT_PORT)
 
             # Check if port is not already in user for another Hub
@@ -495,13 +497,15 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_menu - handle input {user_input}")
-            self._device_code = user_input.get(CONF_DEVICE, "")
-            self._user_level = user_input.get(CONF_USER_LEVEL, DEFAULT_USER_LEVEL)
+            device_key = user_input.get(CONF_DEVICE, "")
+            device = next( (device for device in self._devices if translation_key(device.code) == device_key), None)
 
-            device = next( (device for device in self._devices if translation_key(device.code) == self._device_code), None)
-            level = next( (level for level in LEVEL if translation_key(level) == self._user_level), DEFAULT_USER_LEVEL)
+            level_key = user_input.get(CONF_USER_LEVEL, "")
+            level = next( (level for level in LEVEL if translation_key(level) == level_key), DEFAULT_USER_LEVEL)
 
             # Additional validation here if needed
+            self._device_code = device.code if device is not None else ""
+            self._user_level = level
             self._errors = {}
             if not self._errors:
                 if device is not None:
@@ -628,16 +632,16 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
-            device_code = user_input.get(CONF_DEVICE, "")
-            numbers_csv = user_input.get(CONF_NUMBERS, "")
+            device_key = user_input.get(CONF_DEVICE, "")
+            device = next( (device for device in self._devices if translation_key(device.code) == device_key), None)
 
-            device = next( (device for device in self._devices if translation_key(device.code) == device_code), None)
+            numbers_csv = user_input.get(CONF_NUMBERS, "")
             numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
 
             _LOGGER.debug(f"Step add_numbers - debug; numbers_csv={numbers_csv}, numbers={numbers}, device={device}")
 
             # Additional validation here if needed
-            self._device_code = device_code
+            self._device_code = device.code if device is not None else None
             self._errors = {}
             if device is not None and len(numbers) > 0:
                 try:
@@ -689,14 +693,14 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
-            device_code = user_input.get(CONF_DEVICE, "")
+            device_key = user_input.get(CONF_DEVICE, "")
             numbers_csv = user_input.get(CONF_NUMBERS, "")
 
-            device = next( (device for device in self._devices if translation_key(device.code) == device_code), None)
+            device = next( (device for device in self._devices if translation_key(device.code) == device_key), None)
             numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
 
             # Additional validation here if needed
-            self._device_code = device_code
+            self._device_code = device.code if device is not None else None
             self._errors = {}
             if device is not None and len(numbers) > 0:
                 try:
@@ -740,7 +744,6 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def _valid_numbers(self, code: str, family_id:str) -> Callable[[Any], list[int]]:
 
         family = XcomDeviceFamilies.getById(family_id)
-        user_level = LEVEL.from_str(self._user_level)
         
         def validate(value: Any, check_family=True, check_level=True) -> list[int]:
             if not isinstance(value, list):
@@ -769,8 +772,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         raise vol.Invalid(f"Number {nr} is not a valid info or param")
                 
                 if check_level:
-                    if param.level > user_level:
-                        raise vol.Invalid(f"Number {nr} is not allowed with user level {user_level}")
+                    if param.level > self._user_level:
+                        raise vol.Invalid(f"Number {nr} is not allowed with user level {self._user_level}")
 
                 result.append(nr)
 
@@ -790,7 +793,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_VOLTAGE: self._voltage,
             CONF_PORT: self._port,
             CONF_WEBCONFIG_URL: self._webconfig_url,
-            CONF_USER_LEVEL: self._user_level,
+            CONF_USER_LEVEL: str(self._user_level),
             CONF_DEVICES: [device.as_dict() for device in self._devices],
         }
         options = {
