@@ -19,13 +19,6 @@ DOMAIN = "studer_xcom"
 NAME = "Studer Xcom"
 ISSUE_URL = "https://github.com/ankohanse/hass-studer-xcom/issues"
 
-STARTUP_MESSAGE = f"""
-----------------------------------------------------------------------------
-{NAME}
-Domain: {DOMAIN}
-----------------------------------------------------------------------------
-"""
-
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
