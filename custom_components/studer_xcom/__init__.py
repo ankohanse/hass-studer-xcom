@@ -33,7 +33,6 @@ from .const import (
     API,
     COORDINATOR,
     HELPER,
-    STARTUP_MESSAGE,
     DEFAULT_PORT,
 )
 
