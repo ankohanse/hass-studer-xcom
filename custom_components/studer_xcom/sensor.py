@@ -146,20 +146,20 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = 3
                 attr_digits = 3
-                attr_val = round(float(entity.value) * weight, attr_digits) if entity.value!=None else None
+                attr_val = round(float(entity.value) * weight, attr_digits) if entity.value!=None and not math.isnan(entity.value) else None
                 attr_unit = self.get_unit()
 
             case FORMAT.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = None
-                attr_val = int(entity.value) * weight if entity.value!=None else None
+                attr_val = int(entity.value) * weight if entity.value!=None and not math.isnan(entity.value) else None
                 attr_unit = self.get_unit()
                     
             case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
                 # Lookup the dict string for the value and otherwise return the value itself
                 attr_precision = None
-                attr_val = entity.options.get(str(entity.value), entity.value) if entity.value!=None else None
+                attr_val = entity.options.get(str(entity.value), entity.value) if entity.value!=None and not math.isnan(entity.value) else None
                 attr_unit = None
 
             case _:

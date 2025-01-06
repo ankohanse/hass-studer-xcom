@@ -144,7 +144,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 attr_digits = 3
                 attr_min = float(entity.min) * weight if entity.min is not None else None
                 attr_max = float(entity.max) * weight if entity.max is not None else None
-                attr_val = round(float(value) * weight, attr_digits) if value is not None else None
+                attr_val = round(float(value) * weight, attr_digits) if value is not None and not math.isnan(value) else None
                 attr_step = entity.inc
 
             case FORMAT.INT32:
@@ -153,7 +153,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 attr_precision = None
                 attr_min = int(entity.min) * weight if entity.min is not None else None
                 attr_max = int(entity.max) * weight if entity.max is not None else None
-                attr_val = int(value) * weight if value is not None else None
+                attr_val = int(value) * weight if value is not None and not math.isnan(value) else None
                 attr_step = self.get_number_step()
 
             case _:

@@ -370,7 +370,12 @@ class StuderEntity(Entity):
         
         # Return StateClass=Total or Total_Increasing for some specific entities
         nrs_t = []
-        nrs_ti = []
+        nrs_ti = [
+            3078, 3081, 3083, # xt
+            7007, 7008, 7011, 7012, 7013, 7017, 7018, 7019, # bsp
+            11006, 11007, 11008, 11009, 11025, # vt
+            15016, 15017, 15018, 15019, 15020, 15021, 15022, 15023, 15024, 15025, 15030, 15042, # vs
+        ]
         
         if self._entity.nr in nrs_t:
             return SensorStateClass.TOTAL
