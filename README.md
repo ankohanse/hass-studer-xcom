@@ -94,7 +94,7 @@ This is a fully automatic step, no user input needed.
 
 It is recommended to not run Configuration via a Nabu Casa cloud connection, as that will lead to the process getting stuck at the end of this step (known issue). Running Configuration from within the local network does not have this issue.
 
-![setup_step_2](documentation/setup_discovery_moxa.png)
+![setup_step_0](documentation/setup_discovery_moxa.png)
 
 ## Step 1 - Client details
 
