@@ -87,6 +87,15 @@ To start the setup of this custom integration:
 - Search for 'Studer-Innotec'
 - Follow the prompts in the configuration steps
 
+## Step 0 - Moxa discovery
+
+The integration will try to detect the url to the Moxa Web Config in the local network.
+This is a fully automatic step, no user input needed.
+
+It is recommended to not run Configuration via a Nabu Casa cloud connection, as that will lead to the process getting stuck at the end of this step (known issue). Running Configuration from within the local network does not have this issue.
+
+![setup_step_2](documentation/setup_discovery_moxa.png)
+
 ## Step 1 - Client details
 
 The following properties are required to connect to Xcom client on the local network
@@ -103,7 +112,7 @@ In that case, check the configuration of the Xcom-LAN device as described in doc
 The integration will wait until the Xcom client connects to it. Next, it will try to detect any connected Studer devices.
 This is a fully automatic step, no user input needed.
 
-![setup_step_2](documentation/setup_discovery.png)
+![setup_step_2](documentation/setup_discovery_xcom.png)
 
 ## Step 3 - Params and infos numbers
 
@@ -184,7 +193,7 @@ After a restart/reboot of the PV system the system will revert to the value from
 
 **IMPORTANT**:
 
-Be very carefull in changing params marked as having level Expert, Installer or even Qualified Service Person. If you do not know what the effect of a Studer param change is, then do not change it.
+Be very carefull in changing params marked as having level Expert, Installer or even Qualified Service Person. If you do not know what the effect of a Studer param change is, then do not change it!
 
 
 # Troubleshooting
