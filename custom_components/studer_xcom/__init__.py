@@ -69,7 +69,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     lib_logger: logging.Logger = logging.getLogger("aioxcom")
     lib_logger.setLevel(log_level)
 
-    _LOGGER.info(f"Logging at level: {log_level}")
+    _LOGGER.info(f"Logging at {logging.getLevelName(log_level)}")
 
     # Get properties from the config_entry
     port = config_entry.data[CONF_PORT]
