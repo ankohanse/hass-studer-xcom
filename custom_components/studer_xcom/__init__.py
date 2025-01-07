@@ -64,6 +64,13 @@ def _clear_hass_data(hass):
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up the Studer Xcom platforms from a config entry."""
 
+    # Assign the HA configured log level of this module to the aioxcom module
+    log_level: int = _LOGGER.getEffectiveLevel()
+    lib_logger: logging.Logger = logging.getLogger("aioxcom")
+    lib_logger.setLevel(log_level)
+
+    _LOGGER.info(f"Logging at level: {log_level}")
+
     # Get properties from the config_entry
     port = config_entry.data[CONF_PORT]
     

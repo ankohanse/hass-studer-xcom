@@ -302,7 +302,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             _LOGGER.info("Discover Xcom connection")
-            self._coordinator = StuderCoordinatorFactory.create_temp(self._voltage, self._port)
+            if not self._coordinator:
+                self._coordinator = StuderCoordinatorFactory.create_temp(self._voltage, self._port)
 
             if await self._coordinator.start():
                 _LOGGER.info("Xcom client connected")
@@ -318,6 +319,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             # Cleanup
             if CONF_PORT in self._errors:
                 await self._async_xcom_disconnect(is_task=False)
+
+            # Sleep because async_create_task cannot handle an immediate return
+            await asyncio.sleep(1)  
 
             # Ensure we go back to the flow
             self.hass.async_create_task(
@@ -342,6 +346,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._errors[CONF_WEBCONFIG_URL] = f"Unknown error: {e}"
         
         finally:
+            # Sleep because async_create_task cannot handle an immediate return
+            await asyncio.sleep(1)  
+
             # Ensure we go back to the flow
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
@@ -383,10 +390,15 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
             self._errors[CONF_PORT] = f"Unknown error: {e}"
-        
-            await self._async_xcom_disconnect(is_task=False)
 
         finally:
+            # Cleanup
+            if CONF_PORT in self._errors:
+                await self._async_xcom_disconnect(is_task=False)
+
+            # Sleep because async_create_task cannot handle an immediate return
+            await asyncio.sleep(1)  
+
             # Ensure we go back to the flow
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_configure(flow_id=self.flow_id)
@@ -400,13 +412,15 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if self._coordinator and self._coordinator.is_temp:
                 _LOGGER.info("Disconnect from Xcom client")
                 await self._coordinator.stop()
-            else:
-                await asyncio.sleep(1)  # Sleep because async_create_task cannot handle an immediate return
 
             self._coordinator = None
         except:
             pass
+
         finally:
+            # Sleep because async_create_task cannot handle an immediate return
+            await asyncio.sleep(1)  
+
             if is_task:
                 # Ensure we go back to the flow
                 self.hass.async_create_task(
