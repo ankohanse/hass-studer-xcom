@@ -92,7 +92,7 @@ To start the setup of this custom integration:
 The integration will try to detect the url to the Moxa Web Config in the local network.
 This is a fully automatic step, no user input needed.
 
-It is recommended to not run Configuration via a Nabu Casa cloud connection, as that will lead to the process getting stuck at the end of this step (known issue). Running Configuration from within the local network does not have this issue.
+Do not run Configuration via a Nabu Casa cloud connection, as that will lead to the process getting stuck at the end of this step (known issue). Running Configuration from within the local network does not have this issue. See section [Knowledge base](#knowledge-base) for more information.
 
 ![setup_step_0](documentation/setup_discovery_moxa.png)
 
@@ -214,4 +214,15 @@ Special thanks to the following people for providing the information this custom
 - [zocker-160](https://github.com/zocker-160/xcom-protocol)
 - [Michael Jeffers](https://community.home-assistant.io/u/JeffersM)
 
+
+# Knowledge base
+
+## Local install
+It is recommended to run Configuration on the local network, i.e. from a computer within the same network as where Home Assistant and the Studer devices are connected to.
+
+If for some reasone you do need to run Configuration remotely (via a Nabu Casa cloud connection), then use the following method:
+- Connect to the remote Home Assistant 
+- Install the [Firefox addon](https://github.com/mincka/ha-addons)
+- Open a firefox web browser window via the addon and connect to homeassistant.local:8123
+- Add and configure the Studer-Innotec integration.
 
