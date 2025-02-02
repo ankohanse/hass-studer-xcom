@@ -29,7 +29,7 @@ In the Moxa Web Config:
   - Press the 'Submit' button
   - Press 'Save/Restart'
 
-  ![moxa_operating_settings](documentation/moxa_operating_settings.png)
+  ![moxa_operating_settings](documentation/Moxa_operating_settings.png)
 
 ## Device Search Utility
 
