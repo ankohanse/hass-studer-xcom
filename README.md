@@ -44,7 +44,7 @@ Until that time, you can add it as a HACS custom repository:
 3. Enter repository "https://github.com/ankohanse/hass-studer-xcom" (with the quotes seems to work better)
 4. select category 'integration' and press 'Add'
 2. Restart Home Assistant.
-3. Follow the UI based [Configuration](#configuration)
+3. Follow the UI based [Initial Configuration](#initial-configuration)
 
 
 ## Manual install
@@ -76,10 +76,10 @@ Copying all files in `/custom_components/studer_xcom/` folder from this repo int
     ```
 
 2. Restart Home Assistant.
-3. Follow the UI based [Configuration](#configuration)
+3. Follow the UI based [Initial Configuration](#initial-configuration)
 
 
-# Configuration
+# Initial Configuration
 
 To start the setup of this custom integration:
 - go to Home Assistant's Integration Dashboard
@@ -87,42 +87,72 @@ To start the setup of this custom integration:
 - Search for 'Studer-Innotec'
 - Follow the prompts in the configuration steps
 
-## Step 0 - Moxa discovery
+## Step 1 - Moxa discovery
 
 The integration will try to detect the url to the Moxa Web Config in the local network.
 This is a fully automatic step, no user input needed.
 
 Do not run Configuration via a Nabu Casa cloud connection, as that will lead to the process getting stuck at the end of this step (known issue). Running Configuration from within the local network does not have this issue. See section [Knowledge base](#knowledge-base) for more information.
 
-![setup_step_0](documentation/setup_discovery_moxa.png)
+![setup_step_1](documentation/setup_discovery_moxa.png)
 
-## Step 1 - Client details
+## Step 2 - Client details
 
 The following properties are required to connect to Xcom client on the local network
 - AC voltage: choose between 120 Vac or 240 Vac; used to select the correct Xcom params min and max values
 - Port: specify the port as set in the Moxa NPort configuration. Default 4001
   
-![setup_step_1](documentation/setup_client.png)
+![setup_step_2](documentation/setup_client.png)
 
 If the discovery of Studer devices in step 2 fails then the configuration returns to the screen of step 1.
 In that case, check the configuration of the Xcom-LAN device as described in document [Xcom-LAN config.md](Xcom-LAN%20config.md)
 
-## Step 2 - Xcom discovery
+## Step 3 - Xcom discovery
 
 The integration will wait until the Xcom client connects to it. Next, it will try to detect any connected Studer devices.
 This is a fully automatic step, no user input needed.
 
-![setup_step_2](documentation/setup_discovery_xcom.png)
+![setup_step_3](documentation/setup_discovery_xcom.png)
 
-## Step 3 - Params and infos numbers
+## Step 4 - Finish
+
+After succcessful setup, all dicovered devices from the Studer installation should show up.
+
+![setup_step_4](documentation/setup_success.png)
+
+On the individual device pages, the hardware related device information is presented. Also displayed here are all default created entities, typically grouped into main entity sensors, controls and diagnostics.
+
+Any entities that you do not need can be manually disabled using the HASS GUI. Or use the steps described under [Options Configuration](#options-configuration) to add or remove entities.
+
+![controller_detail](documentation/integration_xt1.png)
+
+
+# Custom configuration
+
+The initial configuration will add default info and params entities for the detected Studer devices. Via the custom configuraton, other info and param entities can be added or removed for each device.
+
+To configure:
+- Go to Home Assistant's Integration Dashboard
+- Click to open the 'Studer-Innotec' integration
+- Click on 'Configure'
+
+## Step 1 - Xcom discovery
+
+The integration will wait until the Xcom client connects to it. Next, it will try to detect any newly connected Studer devices.
+This is a fully automatic step, no user input needed.
+
+## Step 2 - Params and infos numbers
 
 An overview is shown of (default selected) params and info numbers for each detected device.
 In this screen, the actions dropdown box allows you to:
 - Add a param or info number to a device via a menu structure
 - Add param or info numbers to a device by directly entering the numbers
 - Remove param or info numbers from a device by entering the numbers
+- Set advanced options
 
-![setup_step_3](documentation/setup_numbers.png)
+Once you are satisfied with the presented info and params numbers, select action 'Done' and press submit to create all entities (sensors, switches, numbers, etc).
+
+![setup_step_2](documentation/setup_numbers.png)
 
 A full list of available numbers can be found in the library used by this integration: 
 - [aioxcom/xcom_datapoints_240v.json](https://github.com/ankohanse/aioxcom/blob/master/src/aioxcom/xcom_datapoints_240v.json)
@@ -132,52 +162,14 @@ Or it can be downloaded from Studer-Innotec:
 - Go to Downloads -> Openstuder -> communication protocol xcom 232i
 - In the downloaded zip open file 'Technical specification - Xtender serial protocol appendix - 1.6.38.pdf'
 
+# Entity retrieval limits
+
 Restrict yourself to only those parameters you actually use and try to keep the time needed for fetching Studer Xcom data below 20 seconds. While in debug mode (see below), keep an eye on the log (Settings -> System -> Log -> Load Full Logs ),
 and search for lines looking like:
 
 `2024-08-26 09:57:46.383 DEBUG (MainThread) [custom_components.studer_xcom.coordinator] Finished fetching Studer Xcom data in 1.450 seconds (success: True)`
 
 Note: the first data retrieval after a restart will always take longer than subsequent data retrievals.
-
-## Step 4 - Finish
-
-Select action 'Done' and press submit to create all entities (sensors, switches, numbers, etc) for the configured params and infos numbers.
-
-After succcessful setup, all devices from the Studer installation should show up.
-
-![setup_step_4](documentation/setup_success.png)
-
-On the individual device pages, the hardware related device information is displayed, together with sensors typically grouped into main entity sensors, controls and diagnostics.
-
-Any sensors that you do not need can be manually disabled using the HASS GUI.
-
-![controller_detail](documentation/integration_xt1.png)
-
-
-# Re-configuration
-
-In case you want to add or remove Studer params or infos into the integration, this can be done via a Reconfigure.
-This can also be used to discover new Studer devices added to the installation.
-
-To reconfigure:
-- Go to Home Assistant's Integration Dashboard
-- Click to open the 'Studer-Innotec' integration
-- Click on the hamburger icon to open the menu and select 'Reconfigure'
-- The same steps as for 'Configuration' will appear
-
-![controller_detail](documentation/integration_reconfigure.png)
-
-
-# Options configuration
-
-A limited set of parameters can be set via the 'Options' page.
-
-To reconfigure:
-- Go to Home Assistant's Integration Dashboard
-- Click to open the 'Studer-Innotec' integration
-- Click on 'Configure'
-
-![controller_detail](documentation/integration_options.png)
 
 
 # Entity writes to device

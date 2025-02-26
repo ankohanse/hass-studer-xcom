@@ -205,9 +205,10 @@ class StuderCoordinatorFactory:
         config: dict[str,Any] = {
             CONF_VOLTAGE: voltage,
             CONF_PORT: port,
+        }
+        options: dict[str,Any] = {
             CONF_DEVICES: [],
         }
-        options: dict[str,Any] = {}
         
         # Already have a coordinator for this port?
         coordinator = None
@@ -242,9 +243,12 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         self._voltage: str = config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
         self._port: int = config.get(CONF_PORT, DEFAULT_PORT)
-        devices_data = config.get(CONF_DEVICES, [])
 
+        # Get devices from options (with fallback to config for backwards compatibility)
+        devices_data = options.get(CONF_DEVICES, None) \
+                    or config.get(CONF_DEVICES, [])
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
+
         self._options: dict[str,Any] = options
         self._is_temp = is_temp
 

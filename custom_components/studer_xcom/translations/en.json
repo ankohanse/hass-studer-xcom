@@ -13,7 +13,28 @@
       },
       "progress": {
         "description": "Xcom discovery - {percent}%"
-      },
+      }
+    },
+    "progress": {
+      "description": "Xcom discovery - {percent}%",
+      "moxa_webconfig": "Searching Moxa Web Config",
+      "xcom_connect": "Connect to Xcom client",
+      "xcom_devices": "Searching Studer devices",
+      "xcom_disconnect": "Disconnect from Xcom client"
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error",
+      "no_devices_found": "No devices found"
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error"
+    }
+  },
+  "options": {
+    "step": {
       "numbers": {
         "description": "Choose parameter and info numbers per device from [Studer Appendix]({numbers_url})\n\n{datapoints}",
         "data": {
@@ -52,34 +73,20 @@
         "data_description": {
           "numbers": "Multiple comma separated parameter and info numbers can be removed at once.\n\nTo cancel the remove, leave numbers empty and press Submit."
         }
-      }
-    },
-    "progress": {
-      "description": "Xcom discovery - {percent}%",
-      "xcom_connect": "Connect to Xcom client",
-      "xcom_webconfig": "Searching Xcom Moxa Web Config",
-      "xcom_devices": "Searching Studer devices",
-      "xcom_disconnect": "Disconnect from Xcom client"
-    },
-    "abort": {
-      "already_configured": "Device is already configured",
-      "cannot_connect": "Failed to connect",
-      "unknown": "Unexpected error",
-      "no_devices_found": "No devices found"
-    },
-    "error": {
-      "cannot_connect": "Failed to connect",
-      "unknown": "Unexpected error"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "General Options",
+      },
+      "opt_advanced": {
+        "title": "Advanced Options",
         "data": {
           "polling_interval": "Polling interval"
         }
       }
+    },
+    "progress": {
+      "description": "Xcom discovery - {percent}%",
+      "moxa_webconfig": "Searching Moxa Web Config",
+      "xcom_connect": "Connect to Xcom client",
+      "xcom_devices": "Searching Studer devices",
+      "xcom_disconnect": "Disconnect from Xcom client"
     },
     "error": {
     }
@@ -96,6 +103,7 @@
         "add_via_menu": "add item via menu", 
         "add_via_nr": "add item via number", 
         "del_via_nr": "remove item",
+        "opt_advanced": "advanced options",
         "done": "done"
       }
     },

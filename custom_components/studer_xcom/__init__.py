@@ -47,9 +47,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     for entry in hass.config_entries.async_entries(DOMAIN):
         if not isinstance(entry.unique_id, str):
-            hass.config_entries.async_update_entry(
-                entry, unique_id=str(entry.unique_id)
-            )
+            hass.config_entries.async_update_entry(entry, unique_id=str(entry.unique_id))
     return True
 
 
