@@ -410,13 +410,13 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 raise Exception("process _async_xcom_connect was not called prior to _async_xcom_devices")
 
             helper = XcomDiscover(self._coordinator._api, self._dataset)
-            devices = await helper.discoverDevices(getExtendedInfo = True)
-            if not devices:
+            devices_new = await helper.discoverDevices(getExtendedInfo = True)
+            if not devices_new:
                 self._errors[CONF_PORT] = f"No Studer devices found via Xcom client"
                 return
             
             self._devices = []
-            for device in devices:
+            for device in devices_new:
                 # In reconfigure, did we already have a deviceConfig for this device?
                 device_old = next((d for d in self._devices_old if StuderDeviceConfig.match(d, device)), None)
 
@@ -431,7 +431,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     fid = device.fid,
                     numbers = device_old.numbers if device_old else DEFAULT_FAMILY_NUMBERS.get(device.family_id, [])  
                 ))
-                
+
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
             self._errors[CONF_PORT] = f"Unknown error: {e}"
@@ -478,7 +478,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         # When called from OptionsFlow, 'hass.config_entries.flow.async_configure' will throw a UnknowFlow exception.
         # Everything else seems to work as expected, so we just suppress this exception.
-        # The ConfigFlow does not have this behavior and does not throw the exception.
+        # When called from ConfigFlow it does not have this behavior and does not throw the exception.
         with suppress(UnknownFlow):
             await self.hass.config_entries.flow.async_configure(flow_id=flow_id)
 
@@ -559,6 +559,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         _LOGGER.debug(f"Step numbers - show form")
         return self.async_show_form(
+            step_id="numbers",
             data_schema = schema,
             description_placeholders = {
                 "numbers_url": XCOM_APPENDIX_URL,
@@ -621,6 +622,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         _LOGGER.debug(f"Step add_menu - show form")
         return self.async_show_form(
+            step_id="add_menu",
             data_schema = schema,
             errors = self._errors,
             last_step = False,
@@ -694,6 +696,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         _LOGGER.debug(f"Step add_menu_items - show form")
         return self.async_show_form(
+            step_id="add_menu_items",
             data_schema = schema,
             description_placeholders = {
                 "menu_name": self._menu_parent_name
@@ -717,8 +720,6 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             numbers_csv = user_input.get(CONF_NUMBERS, "")
             numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
-
-            _LOGGER.debug(f"Step add_numbers - debug; numbers_csv={numbers_csv}, numbers={numbers}, device={device}")
 
             # Additional validation here if needed
             self._device_code = device.code if device is not None else None
@@ -757,6 +758,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         _LOGGER.debug(f"Step add_numbers - show form")
         return self.async_show_form(
+            step_id="add_numbers",
             data_schema = schema,
             description_placeholders = {
                 "numbers_url": XCOM_APPENDIX_URL,
@@ -774,11 +776,11 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         if user_input is not None:
             # Get form data
-            _LOGGER.debug(f"Step add_numbers - handle input {user_input}")
+            _LOGGER.debug(f"Step del_numbers - handle input {user_input}")
             device_key = user_input.get(CONF_DEVICE, "")
-            numbers_csv = user_input.get(CONF_NUMBERS, "")
-
             device = next( (device for device in self._devices if translation_key(device.code) == device_key), None)
+
+            numbers_csv = user_input.get(CONF_NUMBERS, "")
             numbers = list(filter(None, [v.strip() for v in numbers_csv.split(',')]))
 
             # Additional validation here if needed
@@ -791,14 +793,14 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
                     device.numbers = [n for n in device.numbers if n not in del_numbers]
 
-                    _LOGGER.debug(f"Step add_numbers - deleted {str.join(',', str.join(',', [str(n) for n in del_numbers]))} from {device.code}")
+                    _LOGGER.debug(f"Step del_numbers - deleted {str.join(',', [str(n) for n in del_numbers])} from {device.code}")
 
                 except Exception as e:
                     _LOGGER.debug(f"Step del_numbers - validation error {e}")
                     self._errors[CONF_NUMBERS] = str(e)
 
             if not self._errors:
-                _LOGGER.debug(f"Step add_numbers - next step numbers")
+                _LOGGER.debug(f"Step del_numbers - next step numbers")
                 return await self.async_step_numbers()
 
         # Build the schema for the form and show the form
@@ -816,6 +818,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         _LOGGER.debug(f"Step del_numbers - show form")
         return self.async_show_form(
+            step_id="del_numbers",
             data_schema = schema,
             description_placeholders = {
                 "numbers_url": XCOM_APPENDIX_URL,
@@ -887,6 +890,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         _LOGGER.debug(f"Step options_advanced - show form")
 
         return self.async_show_form(
+            step_id="opt_advanced",
             data_schema=vol.Schema({
                 vol.Required(CONF_POLLING_INTERVAL, default=self._polling_interval): 
                     vol.All(vol.Coerce(int), vol.Range(min=5)),
