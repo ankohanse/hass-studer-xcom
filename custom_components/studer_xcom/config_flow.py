@@ -31,11 +31,11 @@ from homeassistant.const import (
 
 from .const import (
     DOMAIN,
-    DEFAULT_PORT,
     CONF_VOLTAGE,
     CONF_USER_LEVEL,
     CONF_POLLING_INTERVAL,
     CONF_WEBCONFIG_URL,
+    DEFAULT_PORT,
     DEFAULT_VOLTAGE,
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
@@ -43,6 +43,7 @@ from .const import (
     INTEGRATION_README_URL,
     MOXA_README_URL,
     XCOM_APPENDIX_URL,
+    TITLE_FMT,
 )
 from .coordinator import (
     StuderCoordinatorFactory,
@@ -906,7 +907,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         """
 
         # Create the integration entry
-        title = f"Studer via Xcom port {self._port}"
+        title = str.format(TITLE_FMT, port=self._port)
         data = {
             CONF_VOLTAGE: self._voltage,
             CONF_PORT: self._port,
@@ -948,7 +949,7 @@ class ConfigFlowHandler(ConfigFlow, StuderFlowHandler, domain=DOMAIN):
         Get the options flow for this handler.
         Points to ourself as this class handles both config and options flow.
         """
-        return OptionsFlowHandler() #(config_entry)
+        return OptionsFlowHandler()
     
 
     async def async_step_user(self, user_input: dict[str,Any] | None = None) -> FlowResult:

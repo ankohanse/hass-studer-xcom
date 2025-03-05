@@ -36,12 +36,14 @@
   "options": {
     "step": {
       "numbers": {
+        "title": "Configure",
         "description": "Choose parameter and info numbers per device from [Studer Appendix]({numbers_url})\n\n{datapoints}",
         "data": {
           "numbers_action": "Action"
         }
       },
       "add_menu": {
+        "title": "Configure",
         "description": "Add parameter and info numbers to a device via a menu.",
         "data": {
           "device": "Device",
@@ -49,39 +51,43 @@
         }
       },
       "add_menu_items": {
+        "title": "Configure",
         "description": "{menu_name}",
         "data": {
           "numbers_menu": "►"
         }
       },
       "add_numbers": {
+        "title": "Configure",
         "description": "Add parameter and info numbers to a device.\n\nA complete list of available numbers can be found in [Studer Appendix]({numbers_url})",
         "data": {
           "device": "Device",
           "numbers": "Numbers"
         },
         "data_description": {
-          "numbers": "Multiple comma separated parameter and info numbers can be added at once.\n\nTo cancel the add, leave numbers empty and press Submit."
+          "numbers": "Multiple comma separated parameter and info numbers can be added at once.\n\nTo cancel the add, leave numbers empty and press Next."
         }
       },
       "del_numbers": {
+        "title": "Configure",
         "description": "Remove parameter and info numbers from a device.",
         "data": {
           "device": "Device",
           "numbers": "Numbers"
         },
         "data_description": {
-          "numbers": "Multiple comma separated parameter and info numbers can be removed at once.\n\nTo cancel the remove, leave numbers empty and press Submit."
+          "numbers": "Multiple comma separated parameter and info numbers can be removed at once.\n\nTo cancel the remove, leave numbers empty and press Next."
         }
       },
       "opt_advanced": {
-        "title": "Advanced Options",
+        "title": "Configure",
         "data": {
           "polling_interval": "Polling interval"
         }
       }
     },
     "progress": {
+      "title": "Configure",
       "description": "Xcom discovery - {percent}%",
       "moxa_webconfig": "Searching Moxa Web Config",
       "xcom_connect": "Connect to Xcom client",
