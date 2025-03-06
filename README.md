@@ -104,7 +104,7 @@ The following properties are required to connect to Xcom client on the local net
   
 ![setup_step_2](documentation/setup_client.png)
 
-If the discovery of Studer devices in step 2 fails then the configuration returns to the screen of step 1.
+If the discovery of Studer devices in step 3 fails then the configuration returns to the screen of step 2.
 In that case, check the configuration of the Xcom-LAN device as described in document [Xcom-LAN config.md](Xcom-LAN%20config.md)
 
 ## Step 3 - Xcom discovery
@@ -122,7 +122,7 @@ After succcessful setup, all dicovered devices from the Studer installation shou
 
 On the individual device pages, the hardware related device information is presented. Also displayed here are all default created entities, typically grouped into main entity sensors, controls and diagnostics.
 
-Any entities that you do not need can be manually disabled using the HASS GUI. Or use the steps described under [Options Configuration](#options-configuration) to add or remove entities.
+Any entities that you do not need can be manually disabled using the HASS GUI. Or use the steps described under [Custom Configuration](#custom-configuration) to add or remove entities.
 
 ![controller_detail](documentation/integration_xt1.png)
 
