@@ -218,3 +218,62 @@ If for some reasone you do need to run Configuration remotely (via a Nabu Casa c
 - Open a firefox web browser window via the addon and connect to homeassistant.local:8123
 - Add and configure the Studer-Innotec integration.
 
+## Synchronise Time
+The clock inside the Studer RCC will slowly drift out of sync with actual time. Moreover, it will not automatically switch from and to daylight savings time leading to a one hour offset during half of the year.
+
+Both these issues can easily be resolved by configuring the following automation in Home Assistant; it will correct the time once a day. The chosen trigger time of 3:05am is so that it is after any daylight savings time adjustment.
+
+```
+alias: Studer RCC Sync Time
+description: ""
+triggers:
+  - trigger: time_pattern
+    hours: "3"
+    minutes: "0"
+    seconds: "5"
+conditions: []
+actions:
+  - action: datetime.set_value
+    target:
+      entity_id: datetime.studer_4001_rcc_5002
+    data:
+      datetime: "{{ now() }}"
+mode: restart
+```
+
+## Pause during Studer datalog uploads
+The local Xcom-LAN will do a daily upload of datalogs to the Studer portal servers. This occurs at midnight on the RCC clock and can take up to 45 minutes. 
+
+For larger systems the datalog uploads can fail when the Studer integration requests data updates at that same time (observed in a system with 16 Studer devices). In smaller systems no such conflict is observed.
+
+To prevent problems it is better to configure the Studer integration to not send requests to the Xcom-LAN module during the daily datalog uploads. This requires the following three settings:
+
+1. Disable automatic polling for updates of Studer entities.
+    - Go to Settings -> Integrations -> Studer Innotec
+    - Press the ⋮ and choose System Options
+    - Turn OFF 'Enable polling for changes'
+
+2. Add custom polling for updates of Studer entities.
+    - Go to Settings -> Automations -> Create Automation
+    - Define the new automation according to the following yaml:
+      ```
+      alias: Studer update entities
+      description: ""
+      triggers:
+        - trigger: time_pattern
+          seconds: /30
+      conditions:
+        - condition: time
+          after: "01:00:00"
+          before: "23:59:00"
+      actions:
+        - action: homeassistant.update_entity
+          data:
+            entity_id:
+              - sensor.studer_4001_bsp_7032
+      mode: single
+      ```
+
+      Note that you only need to set one entity_id and it does not matter which studer entity is chosen. A trigger to update one entity will result in update of all Studer entities. The chosen entity_id above is 'sensor.studer_4001_bsp_7032' (BSP State of Charge). Another logical candidate is 'datetime.studer_4001_rcc_5002' (RCC Datetime).
+
+3. Make sure the RCC Datetime is regularly synchronised so that time drift and start or end of Daylight savings will not invalidate the time condition in the automation of step 2. See knowledge base section [Synchronise Time](#synchronise-time).
