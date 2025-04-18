@@ -13,18 +13,14 @@ from typing import Any
 
 from homeassistant.components.diagnostics import REDACTED
 from homeassistant.components.diagnostics.util import async_redact_data
-from homeassistant.components.light import LightEntity
-from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import callback
 from homeassistant.core import HomeAssistant
 from homeassistant.core import async_get_hass
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import entity_registry
 from homeassistant.helpers.storage import Store
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -39,10 +35,12 @@ from .const import (
     NAME,
     MANUFACTURER,
     COORDINATOR,
+    PLATFORMS,
     PREFIX_ID,
     PREFIX_NAME,
     CONF_VOLTAGE,
     CONF_POLLING_INTERVAL,
+    CONF_CLIENT_INFO,
     DEFAULT_VOLTAGE,
     DEFAULT_PORT,
     DEFAULT_POLLING_INTERVAL,
@@ -58,6 +56,7 @@ from aioxcom import (
     XcomApiTimeoutException,
     XcomApiResponseIsError,
     XcomApiUnpackException,
+    XcomDiscoveredClient,
     XcomDiscoveredDevice,
     XcomDataset,
     XcomDatapoint,
@@ -72,6 +71,33 @@ _LOGGER = logging.getLogger(__name__)
 
 MODIFIED_PARAMS = "ModifiedParams"
 MODIFIED_PARAMS_TS = "ModifiedParamsTs"
+
+
+class StuderClientConfig(XcomDiscoveredClient):
+    def __init__(self, ip, mac):
+        # From XcomDiscoveredClient
+        self.ip = ip
+        self.mac = device_registry.format_mac(mac) if mac else None
+
+    @staticmethod
+    def from_dict(d: dict[str,Any]):
+        return StuderClientConfig(
+            d.get("ip", None),
+            d.get("mac", None),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return dictionary version of this client info."""
+        return {
+            "ip": self.ip,
+            "mac": self.mac,
+        }
+    
+    def __str__(self) -> str:
+        return f"StuderClientConfig(ip={self.ip}, mac={self.mac})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
 
 class StuderDeviceConfig(XcomDiscoveredDevice):
@@ -105,15 +131,15 @@ class StuderDeviceConfig(XcomDiscoveredDevice):
     @staticmethod
     def from_dict(d: dict[str,Any]):
         return StuderDeviceConfig(
-            d["code"],
-            d["address"],
-            d["family_id"],
-            d["family_model"],
-            d["device_model"],
-            d["hw_version"],
-            d["sw_version"],
-            d["fid"],
-            d["numbers"],
+            d.get("code", None),
+            d.get("address", None),
+            d.get("family_id", None),
+            d.get("family_model", None),
+            d.get("device_model", None),
+            d.get("hw_version", None),
+            d.get("sw_version", None),
+            d.get("fid", None),
+            d.get("numbers", None),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -138,7 +164,7 @@ class StuderDeviceConfig(XcomDiscoveredDevice):
 
 
 class StuderEntityData(XcomDatapoint):
-    def __init__(self, param, object_id, unique_id, device_id, device_code, device_addr):
+    def __init__(self, param, object_id, unique_id, legacy_ids, device_id, device_code, device_addr):
         # from XcomDatapoint
         self.family_id = param.family_id
         self.level = param.level
@@ -155,8 +181,10 @@ class StuderEntityData(XcomDatapoint):
         self.options = param.options
 
         # for StuderEntityData
-        self.object_id = object_id
-        self.unique_id = unique_id
+        self.object_id = object_id  # For HA user unique id, based on port
+        self.unique_id = unique_id  # for HA internal unique id, based on mac address
+        self.legacy_ids = legacy_ids # Previous HA internal unique_id, used for migrate to new unique_id
+
         self.weight = 1
         self.value = None
         self.valueModified = None
@@ -166,26 +194,28 @@ class StuderEntityData(XcomDatapoint):
         self.device_addr = device_addr
 
 
+
 class StuderCoordinatorFactory:
     
     @staticmethod
-    def create(hass: HomeAssistant, config_entry: ConfigEntry):
+    def create(hass: HomeAssistant, config_entry: ConfigEntry, force_new: bool = False):
         """
         Get existing Coordinator for a config entry, or create a new one if it does not yet exist
         """
     
         # Get properties from the config_entry
-        port = config_entry.data[CONF_PORT]
-        config = config_entry.data
-        options = config_entry.options
+        config = config_entry.data or {}
+        options = config_entry.options or {}
 
         if not COORDINATOR in hass.data[DOMAIN]:
             hass.data[DOMAIN][COORDINATOR] = {}
             
         # already created?
+        port = config[CONF_PORT]
+
         coordinator = hass.data[DOMAIN][COORDINATOR].get(port, None)
-        if not coordinator:
-            # Get an instance of our coordinator. This is unique to this port
+        if not coordinator or force_new:
+            # Get a new instance of our coordinator. This is unique to this port
             coordinator = StuderCoordinator(hass, config, options)
             hass.data[DOMAIN][COORDINATOR][port] = coordinator
             
@@ -228,7 +258,7 @@ class StuderCoordinatorFactory:
 class StuderCoordinator(DataUpdateCoordinator):
     """My custom coordinator."""
 
-    def __init__(self, hass, config: dict[str,Any], options: dict[str,Any], is_temp=False):
+    def __init__(self, hass, configs: dict[str,Any], options: dict[str,Any], is_temp=False):
         """Initialize my coordinator."""
         super().__init__(
             hass,
@@ -241,28 +271,35 @@ class StuderCoordinator(DataUpdateCoordinator):
             always_update = True,
         )
 
-        self._voltage: str = config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
-        self._port: int = config.get(CONF_PORT, DEFAULT_PORT)
+        self._is_temp = is_temp
+
+        # Get config data
+        self._voltage: str = configs.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
+        self._port: int = configs.get(CONF_PORT, DEFAULT_PORT)
+
+        # Get id for this installation from client MAC address, or fallback to port
+        client_info = StuderClientConfig.from_dict(configs.get(CONF_CLIENT_INFO, {}))
+        self._install_id = StuderCoordinator.create_id(client_info.mac or self._port)
 
         # Get devices from options (with fallback to config for backwards compatibility)
         devices_data = options.get(CONF_DEVICES, None) \
-                    or config.get(CONF_DEVICES, [])
+                    or configs.get(CONF_DEVICES, [])
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
 
-        self._options: dict[str,Any] = options
-        self._is_temp = is_temp
-
+        # Create helper objects
         self._api = XcomApiTcp(self._port)
 
-        self._install_id = StuderCoordinator.create_id(self._port)
         self._entity_map: dict[str,StuderEntityData] = {}
         self._entity_map_ts = datetime.now()
         self.data = self._get_data()
 
+        self._valid_unique_ids: dict[Platform, list[str]] = {}
+        self._valid_device_ids: list[tuple[str,str]] = []
+
         # Cached data to persist updated params saved into device RAM
         self._hass = hass
         self._store_key = self._install_id
-        self._store = StuderCoordinatorStore(hass, self._store_key)
+        self._store = StuderCoordinatorStore(self.hass, self._store_key)
         self._cache = {}
         self._cache_last_write = datetime.min
         
@@ -306,8 +343,19 @@ class StuderCoordinator(DataUpdateCoordinator):
         return dt_util.get_time_zone(self._hass.config.time_zone)
 
 
-    async def _create_entity_map(self):
+    @property
+    def install_id(self) -> str:
+        return self._install_id
+    
 
+    def set_valid_unique_ids(self, platform: Platform, ids: list[str]):
+        self._valid_unique_ids[platform] = ids
+
+
+    async def _create_entity_map(self):
+        """
+        Create list of all entities in this installation
+        """
         entity_map: dict[str,StuderEntityData] = {}
 
         # No need to load XcomDataset from file if no device numbers need resolving
@@ -335,14 +383,20 @@ class StuderCoordinator(DataUpdateCoordinator):
     
 
     def _create_entity(self, param: XcomDatapoint, family: XcomDeviceFamily, device: StuderDeviceConfig) -> StuderEntityData | None:
-    
+        """
+        Store all properties for easy lookup by entities
+        """
         try:
-            # Store all properties for easy lookup by entities
             entity = StuderEntityData(
                 param = param,
 
-                object_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code, param.nr),
+                object_id = StuderCoordinator.create_id(PREFIX_ID, self._port, device.code, param.nr),
                 unique_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code, param.nr),
+
+                # Previously used unique_ids, used for migration to new id
+                legacy_ids = [ 
+                    *( (StuderCoordinator.create_id(PREFIX_ID, self._port, device.code, param.nr),) if self._install_id != str(self._port) else () ), 
+                ],
 
                 # Device associated with this entity
                 device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code),
@@ -357,17 +411,18 @@ class StuderCoordinator(DataUpdateCoordinator):
         
 
     async def async_create_devices(self, config_entry: ConfigEntry):
-       """
-       Add all detected devices to the hass device_registry
-       """
-       _LOGGER.debug(f"Create devices")
-       dr = device_registry.async_get(self.hass)
+        """
+        Add all detected devices to the hass device_registry
+        """
+        _LOGGER.debug(f"Create devices")
+        dr = device_registry.async_get(self.hass)
        
-       for device in self._devices:
+        valid_ids: list[tuple[str,str]] = []
+        for device in self._devices:
             family = XcomDeviceFamilies.getById(device.family_id)
             device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code)
-
-            _LOGGER.debug(f"Create device {device_id}")
+            
+            _LOGGER.debug(f"Create device ({DOMAIN}, {device_id})")
 
             dr.async_get_or_create(
                 config_entry_id = config_entry.entry_id,
@@ -379,6 +434,43 @@ class StuderCoordinator(DataUpdateCoordinator):
                 sw_version = device.sw_version,
                 serial_number = device.fid,
             )
+            valid_ids.append( (DOMAIN, device_id) )
+           
+        # Remember valid device ids so we can do a cleanup of invalid ones later
+        self._valid_device_ids = valid_ids
+
+
+    async def async_cleanup_devices(self, config_entry: ConfigEntry):
+        """
+        cleanup all devices that are no longer in use
+        """
+        _LOGGER.info(f"Cleanup devices")
+
+        dr = device_registry.async_get(self.hass)
+        known_devices = device_registry.async_entries_for_config_entry(dr, config_entry.entry_id)
+
+        for device in known_devices:
+            if all(id not in self._valid_device_ids for id in device.identifiers):
+                _LOGGER.info(f"Remove obsolete device {next(iter(device.identifiers))}")
+                dr.async_remove_device(device.id)
+
+
+    async def async_cleanup_entities(self, config_entry: ConfigEntry):
+        """
+        cleanup all entities that are no longer in use
+        """
+        _LOGGER.info(f"Cleanup entities")
+
+        er = entity_registry.async_get(self.hass)
+        known_entities = entity_registry.async_entries_for_config_entry(er, self.config_entry.entry_id)
+
+        for entity in known_entities:
+            # Note that platform and domain are mixed up in entity_registry
+            valid_unique_ids = self._valid_unique_ids.get(entity.domain, [])
+
+            if entity.unique_id not in valid_unique_ids:
+                _LOGGER.info(f"Remove obsolete entity {entity.entity_id} ({entity.unique_id})")
+                er.async_remove(entity.entity_id)
 
 
     async def _async_update_data(self):
@@ -585,13 +677,8 @@ class StuderCoordinator(DataUpdateCoordinator):
     def create_id(*args):
         s = '_'.join(str(x) for x in args).strip('_')
         s = re.sub(' ', '_', s)
-        s = re.sub('[^a-z0-9_-]+', '', s.lower())
+        s = re.sub('[^a-z0-9:_-]', '', s.lower())   # Allow : as part of mac-address
         return s        
-
-
-class StuderDataError(Exception):
-
-    """Exception to indicate generic data failure."""    
 
 
 class StuderCoordinatorStore(Store[dict]):

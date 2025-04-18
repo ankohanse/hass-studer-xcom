@@ -60,6 +60,7 @@ CONF_USER_LEVEL = "user_level"
 CONF_OPTIONS = "options"
 CONF_POLLING_INTERVAL = "polling_interval"
 CONF_WEBCONFIG_URL = "webconfig_url"
+CONF_CLIENT_INFO = "client_info"
 
 INTEGRATION_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/README.md"
 MOXA_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/Xcom-LAN%20config.md"

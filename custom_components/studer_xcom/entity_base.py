@@ -1,5 +1,4 @@
 import logging
-import async_timeout
 
 from datetime import timedelta
 from typing import Any
@@ -12,17 +11,16 @@ from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
 from homeassistant.core import callback
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
-import homeassistant.helpers.entity_registry as entity_registry
 
 from homeassistant.const import (
     CONF_PORT,
 )
 
 from .const import (
+    DEFAULT_PORT,
     DOMAIN,
     PLATFORMS,
     HELPER,
@@ -30,13 +28,16 @@ from .const import (
     BINARY_SENSOR_VALUES_ON,
     BINARY_SENSOR_VALUES_OFF,
     BINARY_SENSOR_VALUES_ALL,
+    PREFIX_ID,
     SWITCH_VALUES_ON,
     SWITCH_VALUES_OFF,
     SWITCH_VALUES_ALL,
 )
 from .coordinator import (
+    StuderClientConfig,
     StuderCoordinatorFactory,
-    StuderCoordinator
+    StuderCoordinator,
+    StuderEntityData
 )
 from aioxcom import (
     FORMAT,
@@ -57,19 +58,16 @@ class StuderEntityHelperFactory:
     
         # Get properties from the config_entry
         port = config_entry.data[CONF_PORT]
-        options = config_entry.options
-
-        install_id = port
-
+        
         if not HELPER in hass.data[DOMAIN]:
             hass.data[DOMAIN][HELPER] = {}
             
         # already created?
-        helper = hass.data[DOMAIN][HELPER].get(install_id, None)
+        helper = hass.data[DOMAIN][HELPER].get(port, None)
         if not helper:
-            # Get an instance of our helper. This is unique to this install_id
-            helper = StuderEntityHelper(hass, config_entry, install_id, options)
-            hass.data[DOMAIN][HELPER][install_id] = helper
+            # Get an instance of our helper. This is unique to this port
+            helper = StuderEntityHelper(hass, config_entry)
+            hass.data[DOMAIN][HELPER][port] = helper
             
         return helper
 
@@ -77,9 +75,8 @@ class StuderEntityHelperFactory:
 class StuderEntityHelper:
     """My custom helper to provide common functions."""
     
-    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, install_id, options):
-        self.install_id = install_id
-        self.options = options
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry):
+        self.config_entry = config_entry
 
         # Get an instance of the DabPumpsCoordinator for this install_id
         self.coordinator = StuderCoordinatorFactory.create(hass, config_entry)
@@ -88,60 +85,53 @@ class StuderEntityHelper:
         self.entity_registry = entity_registry.async_get(hass)
         
     
-    async def async_setup_entry(self, target_platform, target_class, async_add_entities: AddEntitiesCallback):
+    async def async_setup_entry(self, target_platform:Platform, target_class:'StuderEntity', async_add_entities: AddEntitiesCallback):
         """
         Setting up the adding and updating of sensor and binary_sensor entities
         """    
         # Get data from the coordinator
-        entity_map = self.coordinator.data
+        entity_map: dict[str,StuderEntityData] = self.coordinator.data
         
         if not entity_map:
             # If data returns False or is empty, log an error and return
             _LOGGER.warning(f"Failed to fetch entity data")
             return
         
-        other_platforms = [p for p in PLATFORMS if p != target_platform]
-        
         # Iterate all statusses to create sensor entities
-        ha_entities = []
+        ha_entities: list[StuderEntity] = []
+        valid_unique_ids: list[str] = []
+
         for entity in entity_map.values():
             
             platform = self._get_entity_platform(entity)
-            
             if platform != target_platform:
                 # This status will be handled via another platform
                 continue
                 
             # Create a Sensor, Binary_Sensor, Number, Select, Switch or other entity for this status
-            ha_entity = None                
             try:
-                ha_entity = target_class(self.coordinator, self.install_id, entity)
+                ha_entity = target_class(self.coordinator, entity)
                 ha_entities.append(ha_entity)
+                
+                valid_unique_ids.append(entity.unique_id)
+
+                # Update entity_registry if needed
+                self._async_migrate_entity(ha_entity)
+
             except Exception as  ex:
                 _LOGGER.warning(f"Could not instantiate {platform} entity class for {entity.object_id}. Details: {ex}")
+                continue
 
-            # See if new entity already existed under another platform. If so, then remove the old entity.
-            if ha_entity:
-                for p in other_platforms:
-                    try:
-                        ha_entity_id = self.entity_registry.async_get_entity_id(p, DOMAIN, ha_entity.unique_id)
-                        if ha_entity_id:
-                            _LOGGER.info(f"Remove obsolete {ha_entity_id} that is replaced by {platform}.{ha_entity.unique_id}")
-                            self.entity_registry.async_remove(ha_entity_id)
-
-                        ha_entity_id = self.entity_registry.async_get_entity_id(p, DOMAIN, ha_entity.object_id)
-                        if ha_entity_id:
-                            _LOGGER.info(f"Remove obsolete {ha_entity_id} that is replaced by {platform}.{ha_entity.unique_id}")
-                            self.entity_registry.async_remove(ha_entity_id)
-                    except Exception as  ex:
-                        _LOGGER.warning(f"Could not remove obsolete {p}.{ha_entity.unique_id} entity. Details: {ex}")
-
-        _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self.install_id}'")
+        # Remember valid unique_ids per platform so we can do an entity cleanup later
+        self.coordinator.set_valid_unique_ids(target_platform, valid_unique_ids)
+        
+        # Now add the entities to the entity_registry
         if ha_entities:
+            _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self.coordinator.install_id}'")
             async_add_entities(ha_entities)
     
     
-    def _get_entity_platform(self, entity):
+    def _get_entity_platform(self, entity: StuderEntityData):
         """
         Determine what platform an entry should be added into
         """
@@ -207,20 +197,43 @@ class StuderEntityHelper:
             return None
     
 
+    def _async_migrate_entity(self, se: 'StuderEntity'):
+        """
+        Migrate entity attributes
+        """
+
+        # Check for change in unique_id
+        for id in se.get_entity().legacy_ids:
+
+             # Note that entity_registry naming of platform and domain is confusing
+            ha_entity_id = self.entity_registry.async_get_entity_id(se.get_platform(), DOMAIN, id)
+            if ha_entity_id:
+                _LOGGER.info(f"Migrate entity {ha_entity_id} (update internal unique_id to {se.unique_id})")
+                self.entity_registry.async_update_entity(ha_entity_id, new_unique_id=se.unique_id)
+
+
 class StuderEntity(Entity):
     """
     Common funcionality for all Studer Entities:
     (StuderSensor, StuderBinarySensor, StuderNumber, StuderSelect, StuderSwitch)
     """
     
-    def __init__(self, coordinator, entity):
+    def __init__(self, coordinator:StuderCoordinator, entity:StuderEntityData, platform:Platform):
         self._coordinator = coordinator
         self._entity = entity
+        self._platform = platform
         self._attr_unit = self._convert_to_unit()
         self._unit_weight = 1
 
 
-    def _convert_to_unit(self):
+    def get_entity(self) -> StuderEntityData:
+        return self._entity
+    
+    def get_platform(self) -> Platform:
+        return self._platform
+
+
+    def _convert_to_unit(self) -> str|None:
         """Convert from Studer units to Home Assistant units"""
         match self._entity.unit:
             case '°C':          return '°C' 
@@ -263,11 +276,11 @@ class StuderEntity(Entity):
                 return self._entity.unit
     
     
-    def get_unit(self):
+    def get_unit(self) -> str|None:
         return self._attr_unit
         
     
-    def get_icon(self):
+    def get_icon(self) -> str|None:
         """Convert from HA unit to icon"""
         match self._attr_unit:
             case '°C':      return 'mdi:thermometer'
@@ -294,7 +307,7 @@ class StuderEntity(Entity):
             case _:         return None
     
     
-    def get_number_device_class(self):
+    def get_number_device_class(self) -> NumberDeviceClass|None:
         """Convert from HA unit to NumberDeviceClass"""
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return NumberDeviceClass.ENUM
@@ -324,7 +337,7 @@ class StuderEntity(Entity):
             case _:         return None
     
     
-    def get_sensor_device_class(self):
+    def get_sensor_device_class(self) -> SensorDeviceClass|None:
         """Convert from HA unit to SensorDeviceClass"""
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return SensorDeviceClass.ENUM
@@ -354,7 +367,7 @@ class StuderEntity(Entity):
             case _:         return None
     
     
-    def get_sensor_state_class(self):
+    def get_sensor_state_class(self) -> SensorStateClass|None:
         # Return StateClass=None for Enum or Label
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return None
@@ -392,7 +405,7 @@ class StuderEntity(Entity):
         return SensorStateClass.MEASUREMENT
     
     
-    def get_entity_category(self):
+    def get_entity_category(self) -> EntityCategory|None:
         
         # Return None for some specific entities we always want as sensors 
         # even if they would fail some of the tests below
@@ -430,7 +443,7 @@ class StuderEntity(Entity):
         return None
     
     
-    def get_number_step(self):
+    def get_number_step(self) -> list[int]|None:
         match self._attr_unit:
             case 's':
                 candidates = [3600, 60, 1]

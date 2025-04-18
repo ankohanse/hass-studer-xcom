@@ -34,6 +34,10 @@ from .const import (
     ATTR_XCOM_FLASH_STATE,
     ATTR_XCOM_RAM_STATE,
 )
+from .coordinator import (
+    StuderCoordinator,
+    StuderEntityData,
+)
 from .entity_base import (
     StuderEntityHelperFactory,
     StuderEntityHelper,
@@ -60,25 +64,37 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
     Representation of a Studer Select Entity.
     """
     
-    def __init__(self, coordinator, install_id, entity) -> None:
+    def __init__(self, coordinator: StuderCoordinator, entity: StuderEntityData) -> None:
         """ Initialize the sensor. """
         CoordinatorEntity.__init__(self, coordinator)
-        StuderEntity.__init__(self, coordinator, entity)
+        StuderEntity.__init__(self, coordinator, entity, Platform.SELECT)
         
         # The unique identifier for this sensor within Home Assistant
         self.object_id = entity.object_id
-        self.entity_id = ENTITY_ID_FORMAT.format(entity.unique_id)
-        self.install_id = install_id
+        self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
+        self._attr_unique_id = entity.unique_id
+
+        # Standard HA entity attributes
+        self._attr_has_entity_name = True
+        self._attr_name = entity.name
+        self._name = entity.name
         
-        self._coordinator = coordinator
+        self._attr_options = list(entity.options.values())
+        
+        self._attr_entity_category = self.get_entity_category()
+        self._attr_device_class = None
+        
+        self._attr_device_info = DeviceInfo(
+            identifiers = {(DOMAIN, entity.device_id)},
+        )
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
         self._xcom_flash_state = None
         self._xcom_ram_state = None
 
-        # Create all attributes
-        self._update_attributes(entity, True)
+        # Update value
+        self._update_value(entity, True)
     
     
     @property
@@ -114,52 +130,32 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        entity_map = self._coordinator.data
-        
         # find the correct device and status corresponding to this sensor
-        entity = entity_map.get(self.object_id)
-
-        # Update any attributes
+        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
         if entity:
-            if self._update_attributes(entity, False):
+            # Update value
+            if self._update_value(entity, False):
                 self.async_write_ha_state()
     
     
-    def _update_attributes(self, entity, is_create):
-        
+    def _update_value(self, entity:StuderEntityData, force:bool=False):
+        """Process any changes in value"""
+       
         if entity.format != FORMAT.SHORT_ENUM and entity.format != FORMAT.LONG_ENUM:
             _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
 
-        # Process any changes
-        changed = False
         value = entity.valueModified if entity.valueModified is not None else entity.value
 
         attr_val = entity.options.get(str(value), value) if value!=None else None
 
-        # update creation-time only attributes
-        if is_create:
-            self._attr_unique_id = entity.unique_id
-            
-            self._attr_has_entity_name = True
-            self._attr_name = entity.name
-            self._name = entity.name
-            
-            self._attr_options = list(entity.options.values())
-            
-            self._attr_entity_category = self.get_entity_category()
-            self._attr_device_class = None
-            
-            self._attr_device_info = DeviceInfo(
-               identifiers = {(DOMAIN, entity.device_id)},
-            )
-            changed = True
-        
         # update value if it has changed
-        if is_create or self._xcom_flash_state != entity.value:
+        changed = False
+        
+        if force or (self._xcom_flash_state != entity.value):
             self._xcom_flash_state = entity.value
             self._xcom_ram_state = entity.valueModified
 
-        if is_create or self._attr_current_option != attr_val:
+        if force or (self._attr_current_option != attr_val):
             self._attr_current_option = attr_val
 
             self._attr_unit_of_measurement = self.get_unit()

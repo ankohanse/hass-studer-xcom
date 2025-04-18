@@ -35,6 +35,7 @@ from .const import (
     CONF_USER_LEVEL,
     CONF_POLLING_INTERVAL,
     CONF_WEBCONFIG_URL,
+    CONF_CLIENT_INFO,
     DEFAULT_PORT,
     DEFAULT_VOLTAGE,
     DEFAULT_USER_LEVEL,
@@ -47,6 +48,7 @@ from .const import (
 )
 from .coordinator import (
     StuderCoordinatorFactory,
+    StuderClientConfig,
     StuderDeviceConfig,
 )
 from aioxcom import (
@@ -161,6 +163,9 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         self._webconfig_url = configs.get(CONF_WEBCONFIG_URL, "")
 
+        client_info = configs.get(CONF_CLIENT_INFO, {})
+        self._client_info = StuderClientConfig.from_dict(client_info)
+
         devices_data = options.get(CONF_DEVICES, None) or configs.get(CONF_DEVICES, [])
         self._devices = []
         self._devices_old = [StuderDeviceConfig.from_dict(device) for device in devices_data]
@@ -174,6 +179,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         self._errors: dict[str,str] = {}
         self._coordinator = None
         self._dataset = None
+        self._discover = None
 
         # Progress step
         self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
@@ -271,6 +277,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         self._progress_steps = [ 
             # (percent, action, function)
             (0,   "xcom_connect",    self._async_xcom_connect),
+            (30,  "xcom_client",     self._async_xcom_client),
             (50,  "xcom_devices",    self._async_xcom_devices),
             (100, "xcom_disconnect", self._async_xcom_disconnect),
         ]
@@ -380,10 +387,6 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 _LOGGER.info(f"Xcom client did not connect.")
                 self._errors[CONF_PORT] = f"Xcom client did not connect; make sure the Home Assistant IP address and this port are configured via the local Xcom Moxy Web Config"
 
-            # Also create our dataset
-            if not self._dataset:
-                self._dataset = await XcomDataset.create(self._voltage)
-
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
             self._errors[CONF_PORT] = f"Unknown error: {e}"
@@ -401,17 +404,70 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 self.hass.async_create_task( self._async_configure(flow_id=self.flow_id) )
 
     
+    async def _async_xcom_client(self, is_task=True):
+        """Discover information about the Studer Xcom client"""
+
+        try:
+            _LOGGER.info("Discover Xcom client")
+            
+            if not self._coordinator:
+                raise Exception("process _async_xcom_connect was not called prior to _async_xcom_client")
+
+            # Create our dataset and discovery helpers
+            if not self._dataset:
+                self._dataset = await XcomDataset.create(self._voltage)
+
+            if not self._discover:
+                self._discover = XcomDiscover(self._coordinator._api, self._dataset)
+
+            # Discover information about the Xcom client
+            info = await self._discover.discoverClientInfo()
+            if info:
+                _LOGGER.info(f"Xcom client info detected; ip={info.ip}, mac={info.mac}")
+                self._client_info = StuderClientConfig(
+                    info.ip,
+                    info.mac,
+                )
+            else:
+                _LOGGER.info(f"Xcom client info not detected.")
+                self._errors[CONF_PORT] = f"No information found for Studer Xcom client"
+                return
+
+        except Exception as e:
+            _LOGGER.warning(f"Exception during discover of connection: {e}")
+            self._errors[CONF_PORT] = f"Unknown error: {e}"
+
+        finally:
+            # Cleanup
+            if CONF_PORT in self._errors:
+                await self._async_xcom_disconnect(is_task=False)
+
+            # Sleep because async_create_task cannot handle an immediate return
+            await asyncio.sleep(1)  
+
+            # Ensure we go back to the flow
+            if is_task:
+                self.hass.async_create_task( self._async_configure(flow_id=self.flow_id) )
+
+
     async def _async_xcom_devices(self, is_task=True):
         """Discover devices reachable via the Studer Xcom client"""
 
         try:
             _LOGGER.info("Discover Xcom devices")
             
-            if not self._coordinator or not self._dataset:
+            if not self._coordinator:
                 raise Exception("process _async_xcom_connect was not called prior to _async_xcom_devices")
 
-            helper = XcomDiscover(self._coordinator._api, self._dataset)
-            devices_new = await helper.discoverDevices(getExtendedInfo = True)
+            # Create our dataset and discovery helpers
+            if not self._dataset:
+                self._dataset = await XcomDataset.create(self._voltage)
+
+            if not self._discover:
+                self._discover = XcomDiscover(self._coordinator._api, self._dataset)
+
+            # Discover Studer Xcom devices
+            devices_new = await self._discover.discoverDevices(getExtendedInfo = True)
             if not devices_new:
                 self._errors[CONF_PORT] = f"No Studer devices found via Xcom client"
                 return
@@ -459,6 +515,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 await self._coordinator.stop()
 
             self._coordinator = None
+            self._discover = None
             # do not unload self._dataset, it is used later on during 'numbers', 'add_menu' and 'add_number' steps
         except:
             pass
@@ -912,6 +969,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             CONF_VOLTAGE: self._voltage,
             CONF_PORT: self._port,
             CONF_WEBCONFIG_URL: self._webconfig_url,
+            CONF_CLIENT_INFO: self._client_info.as_dict(),
         }
         options = {
             CONF_USER_LEVEL: str(self._user_level),

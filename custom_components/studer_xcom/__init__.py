@@ -75,11 +75,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     _LOGGER.info(f"Setup config entry for port '{port}")
 
     # Get  our Coordinator instance for this port and start it
-    coordinator: StuderCoordinator = StuderCoordinatorFactory.create(hass, config_entry)
+    coordinator: StuderCoordinator = StuderCoordinatorFactory.create(hass, config_entry, force_new=True)
     if not await coordinator.start():
         raise ConfigEntryNotReady(f"Timout while waiting for Studer Xcom client to connect to our port {port}.")
     
-    # Create devices
+    # Create needed devices
     await coordinator.async_create_devices(config_entry)
     
     # Fetch initial data so we have data when entities subscribe
@@ -89,8 +89,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     #
     await coordinator.async_config_entry_first_refresh()
     
-    # Forward to all platforms (sensor, switch, ...)
+    # Forward to all platforms (sensor, switch, ...) to create the entities
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+
+    # Cleanup entities and devices
+    await coordinator.async_cleanup_entities(config_entry)
+    await coordinator.async_cleanup_devices(config_entry)
 
     # Reload entry when it is updated
     # config_entry.async_on_unload(config_entry.add_update_listener(_async_update_listener))
