@@ -58,6 +58,7 @@ from aioxcom import (
     XcomApiTimeoutException,
     XcomApiResponseIsError,
     XcomApiUnpackException,
+    XcomDiscoveredClient,
     XcomDiscoveredDevice,
     XcomDataset,
     XcomDatapoint,
@@ -72,6 +73,33 @@ _LOGGER = logging.getLogger(__name__)
 
 MODIFIED_PARAMS = "ModifiedParams"
 MODIFIED_PARAMS_TS = "ModifiedParamsTs"
+
+
+class StuderClientConfig(XcomDiscoveredClient):
+    def __init__(self, ip, mac):
+        # From XcomDiscoveredClient
+        self.ip = ip
+        self.mac = device_registry.format_mac(mac) if mac else None
+
+    @staticmethod
+    def from_dict(d: dict[str,Any]):
+        return StuderClientConfig(
+            d.get("ip", None),
+            d.get("mac", None),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return dictionary version of this client info."""
+        return {
+            "ip": self.ip,
+            "mac": self.mac,
+        }
+    
+    def __str__(self) -> str:
+        return f"StuderClientConfig(ip={self.ip}, mac={self.mac})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
 
 class StuderDeviceConfig(XcomDiscoveredDevice):

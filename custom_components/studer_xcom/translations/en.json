@@ -19,6 +19,7 @@
       "description": "Xcom discovery - {percent}%",
       "moxa_webconfig": "Searching Moxa Web Config",
       "xcom_connect": "Connect to Xcom client",
+      "xcom_client": "Inspecting Xcom client",
       "xcom_devices": "Searching Studer devices",
       "xcom_disconnect": "Disconnect from Xcom client"
     },
@@ -91,6 +92,7 @@
       "description": "Xcom discovery - {percent}%",
       "moxa_webconfig": "Searching Moxa Web Config",
       "xcom_connect": "Connect to Xcom client",
+      "xcom_client": "Inspecting Xcom client",
       "xcom_devices": "Searching Studer devices",
       "xcom_disconnect": "Disconnect from Xcom client"
     },
