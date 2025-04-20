@@ -36,7 +36,8 @@ from .const import (
 )
 from .coordinator import (
     StuderCoordinatorFactory,
-    StuderCoordinator
+    StuderCoordinator,
+    StuderEntityData
 )
 from aioxcom import (
     FORMAT,
@@ -213,14 +214,22 @@ class StuderEntity(Entity):
     (StuderSensor, StuderBinarySensor, StuderNumber, StuderSelect, StuderSwitch)
     """
     
-    def __init__(self, coordinator, entity):
+    def __init__(self, coordinator:StuderCoordinator, entity:StuderEntityData, platform:Platform):
         self._coordinator = coordinator
         self._entity = entity
+        self._platform = platform
         self._attr_unit = self._convert_to_unit()
         self._unit_weight = 1
 
 
-    def _convert_to_unit(self):
+    def get_entity(self) -> StuderEntityData:
+        return self._entity
+    
+    def get_platform(self) -> Platform:
+        return self._platform
+
+
+    def _convert_to_unit(self) -> str|None:
         """Convert from Studer units to Home Assistant units"""
         match self._entity.unit:
             case '°C':          return '°C' 
@@ -263,11 +272,11 @@ class StuderEntity(Entity):
                 return self._entity.unit
     
     
-    def get_unit(self):
+    def get_unit(self) -> str|None:
         return self._attr_unit
         
     
-    def get_icon(self):
+    def get_icon(self) -> str|None:
         """Convert from HA unit to icon"""
         match self._attr_unit:
             case '°C':      return 'mdi:thermometer'
@@ -294,7 +303,7 @@ class StuderEntity(Entity):
             case _:         return None
     
     
-    def get_number_device_class(self):
+    def get_number_device_class(self) -> NumberDeviceClass|None:
         """Convert from HA unit to NumberDeviceClass"""
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return NumberDeviceClass.ENUM
@@ -324,7 +333,7 @@ class StuderEntity(Entity):
             case _:         return None
     
     
-    def get_sensor_device_class(self):
+    def get_sensor_device_class(self) -> SensorDeviceClass|None:
         """Convert from HA unit to SensorDeviceClass"""
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return SensorDeviceClass.ENUM
@@ -354,7 +363,7 @@ class StuderEntity(Entity):
             case _:         return None
     
     
-    def get_sensor_state_class(self):
+    def get_sensor_state_class(self) -> SensorStateClass|None:
         # Return StateClass=None for Enum or Label
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return None
@@ -392,7 +401,7 @@ class StuderEntity(Entity):
         return SensorStateClass.MEASUREMENT
     
     
-    def get_entity_category(self):
+    def get_entity_category(self) -> EntityCategory|None:
         
         # Return None for some specific entities we always want as sensors 
         # even if they would fail some of the tests below
@@ -430,7 +439,7 @@ class StuderEntity(Entity):
         return None
     
     
-    def get_number_step(self):
+    def get_number_step(self) -> list[int]|None:
         match self._attr_unit:
             case 's':
                 candidates = [3600, 60, 1]

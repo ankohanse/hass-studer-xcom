@@ -45,8 +45,8 @@ from .const import (
     ATTR_XCOM_STATE,
 )
 from .coordinator import (
-    StuderCoordinatorFactory,
     StuderCoordinator,
+    StuderEntityData,
 )
 from .entity_base import (
     StuderEntityHelperFactory,
@@ -85,24 +85,34 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
     Could be a sensor that is part of a pump like ESybox, Esybox.mini
     Or could be part of a communication module like DConnect Box/Box2
     """
-    def __init__(self, coordinator, install_id, entity) -> None:
+    
+    def __init__(self, coordinator: StuderCoordinator, entity: StuderEntityData) -> None:
         """ Initialize the sensor. """
         CoordinatorEntity.__init__(self, coordinator)
-        StuderEntity.__init__(self, coordinator, entity)
+        StuderEntity.__init__(self, coordinator, entity, Platform.BINARY_SENSOR)
         
         # The unique identifier for this sensor within Home Assistant
         self.object_id = entity.object_id
-        self.entity_id = ENTITY_ID_FORMAT.format(entity.unique_id)
-        self.install_id = install_id
+        self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
+        self._attr_unique_id = entity.unique_id
+
+        # Standard HA entity attributes        
+        self._attr_has_entity_name = True
+        self._attr_name = entity.name
+        self._name = entity.name
         
-        self._coordinator = coordinator
+        self._attr_device_class = None
+
+        self._attr_device_info = DeviceInfo(
+            identifiers = {(DOMAIN, entity.device_id)},
+        )
         
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
         self._xcom_state = None
 
         # Create all attributes
-        self._update_attributes(entity, True)
+        self._update_value(entity, True)
     
     
     @property
@@ -137,19 +147,17 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        entity_map = self._coordinator.data
-        
         # find the correct device and status corresponding to this sensor
-        entity = entity_map.get(self.object_id)
-
-        # Update any attributes
+        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
         if entity:
-            if self._update_attributes(entity, False):
+            # Update value
+            if self._update_value(entity, False):
                 self.async_write_ha_state()
     
     
-    def _update_attributes(self, entity, is_create):
-        
+    def _update_value(self, entity:StuderEntityData, force:bool=False):
+        """Process any changes in value"""
+
         match entity.format:
             case FORMAT.BOOL:
                 if entity.value == 1:
@@ -178,39 +186,17 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
                 _LOGGER.warning(f"Unexpected entity format ({entity.format}) for a binary sensor")
                 return
             
-        # Process any changes
-        changed = False
-        
-        # update creation-time only attributes
-        if is_create:
-            self._attr_unique_id = entity.unique_id
-            
-            self._attr_has_entity_name = True
-            self._attr_name = entity.name
-            self._name = entity.name
-            
-            self._attr_device_class = self._get_device_class() 
-            self._attr_device_info = DeviceInfo(
-               identifiers = {(DOMAIN, entity.device_id)},
-            )
-            changed = True
-        
         # update value if it has changed
-        if is_create \
-        or (self._xcom_state != entity.value):
+        changed = False
+
+        if force or (self._xcom_state != entity.value):
             
             self._xcom_state = entity.value
         
-        if is_create \
-        or (self._attr_is_on != is_on):
+        if force or (self._attr_is_on != is_on):
             
             self._attr_is_on = is_on
             changed = True
             
         return changed
     
-    
-    def _get_device_class(self):
-        """Return one of the BinarySensorDeviceClass.xyz or None"""
-        return None
-

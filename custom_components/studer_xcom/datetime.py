@@ -35,6 +35,10 @@ from .const import (
     MANUFACTURER,
     ATTR_XCOM_STATE,
 )
+from .coordinator import (
+    StuderCoordinator,
+    StuderEntityData,
+)
 from .entity_base import (
     StuderEntityHelperFactory,
     StuderEntityHelper,
@@ -64,24 +68,34 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
     Or could be part of a communication module like DConnect Box/Box2
     """
     
-    def __init__(self, coordinator, install_id, entity) -> None:
+    def __init__(self, coordinator: StuderCoordinator, entity: StuderEntityData) -> None:
         """ Initialize the sensor. """
         CoordinatorEntity.__init__(self, coordinator)
-        StuderEntity.__init__(self, coordinator, entity)
+        StuderEntity.__init__(self, coordinator, entity, Platform.DATETIME)
         
         # The unique identifier for this sensor within Home Assistant
         self.object_id = entity.object_id
-        self.entity_id = ENTITY_ID_FORMAT.format(entity.unique_id)
-        self.install_id = install_id
+        self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
+        self._attr_unique_id = entity.unique_id
         
-        self._coordinator = coordinator
+        # Standard HA entity attributes
+        self._attr_has_entity_name = True
+        self._attr_name = entity.name
+        self._name = entity.name
+        
+        self._attr_entity_category = self.get_entity_category()
+        self._attr_device_class = None
+
+        self._attr_device_info = DeviceInfo(
+            identifiers = {(DOMAIN, entity.device_id)},
+        )
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
         self._xcom_state = None
 
-        # Create all attributes
-        self._update_attributes(entity, True)
+        # Update value
+        self._update_value(entity, True)
     
     
     @property
@@ -116,22 +130,17 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        entity_map = self._coordinator.data
-        
         # find the correct device and status corresponding to this sensor
-        status = entity_map.get(self.object_id)
-
-        # Update any attributes
-        if status:
-            if self._update_attributes(status, False):
+        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
+        if entity:
+            # Update value
+            if self._update_value(entity, False):
                 self.async_write_ha_state()
     
     
-    def _update_attributes(self, entity, is_create):
+    def _update_value(self, entity: StuderEntityData, force:bool=False):
+        """Process any changes in value"""
         
-        # Process any changes
-        changed = False
-
         match entity.format:
             case FORMAT.INT32:
                 # Studer entity value is seconds since 1 Jan 1970 in local timezone. DateTimeEntity expects UTC
@@ -147,27 +156,13 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
                 _LOGGER.error(f"Unexpected format ({entity.format}) for a datetime entity")
                 return
         
-        # update creation-time only attributes
-        if is_create:
-            self._attr_unique_id = entity.unique_id
-            
-            self._attr_has_entity_name = True
-            self._attr_name = entity.name
-            self._name = entity.name
-            
-            #self._attr_device_class = self.get_number_device_class()
-            self._attr_entity_category = self.get_entity_category()
-            
-            self._attr_device_info = DeviceInfo(
-               identifiers = {(DOMAIN, entity.device_id)},
-            )
-            changed = True
-        
         # update value if it has changed
-        if is_create or self._xcom_state != entity.value:
+        changed = False
+
+        if force or (self._xcom_state != entity.value):
             self._xcom_state = entity.value
         
-        if is_create or self._attr_native_value != attr_val:
+        if force or (self._attr_native_value != attr_val):
             self._attr_state = attr_val
             self._attr_native_value = attr_val
 
