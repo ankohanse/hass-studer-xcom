@@ -218,6 +218,16 @@ If for some reasone you do need to run Configuration remotely (via a Nabu Casa c
 - Open a firefox web browser window via the addon and connect to homeassistant.local:8123
 - Add and configure the Studer-Innotec integration.
 
+## Naming of Studer devices
+The numbering given to the Xtender (and VarioTrack, VarioString) devices is directly related to the internal address that Studer uses for communication between the RCC and the devices. So XT1 is address 101, to XT9 at address 109. Similar, VT1 is address 301, to VT15 at address 315 and VS1 is address 701 to VS15 on address 715.
+
+This naming is consistent with the naming as used in the Studer Portal on the DataLog and Messages tabs.
+
+When adding a new physical device to an installation, attention should be paid to the position in which the device is added to in the CAN bus chain to the RCC. The devices are numbered, lowest number with the device on the end of the chain and ending with the one closest to the RCC (which may be counter intuitive).
+
+So when inserting a new physical device at the end of the CAN bus chain, that device will get number 1 (XT1, VT1 or VS1) and all existing devices (of the same type) will get their number incremented.
+Instead, it is usually more logical to insert the device as first from the RCC, linking all existing devices to the new device. That will give the device the next number up and leaves the existing devices with their existing number.
+
 ## Synchronise Time
 The clock inside the Studer RCC will slowly drift out of sync with actual time. Moreover, it will not automatically switch from and to daylight savings time leading to a one hour offset during half of the year.
 
