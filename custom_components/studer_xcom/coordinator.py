@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.core import async_get_hass
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry
+from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -287,6 +288,9 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._entity_map_ts = datetime.now()
         self.data = self._get_data()
 
+        self._valid_unique_ids: dict[Platform, list[str]] = {}
+        self._valid_device_ids: list[tuple[str,str]] = []
+
         # Cached data to persist updated params saved into device RAM
         self._hass = hass
         self._store_key = self._install_id
@@ -332,6 +336,10 @@ class StuderCoordinator(DataUpdateCoordinator):
     @property
     def time_zone(self) -> tzinfo | None:
         return dt_util.get_time_zone(self._hass.config.time_zone)
+
+
+    def set_valid_unique_ids(self, platform: Platform, ids: list[str]):
+        self._valid_unique_ids[platform] = ids
 
 
     async def _create_entity_map(self):
@@ -385,13 +393,14 @@ class StuderCoordinator(DataUpdateCoordinator):
         
 
     async def async_create_devices(self, config_entry: ConfigEntry):
-       """
-       Add all detected devices to the hass device_registry
-       """
-       _LOGGER.debug(f"Create devices")
-       dr = device_registry.async_get(self.hass)
-       
-       for device in self._devices:
+        """
+        Add all detected devices to the hass device_registry
+        """
+        _LOGGER.debug(f"Create devices")
+        dr = device_registry.async_get(self.hass)
+        valid_ids: list[tuple[str,str]] = []
+
+        for device in self._devices:
             family = XcomDeviceFamilies.getById(device.family_id)
             device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code)
 
@@ -407,6 +416,43 @@ class StuderCoordinator(DataUpdateCoordinator):
                 sw_version = device.sw_version,
                 serial_number = device.fid,
             )
+            valid_ids.append( (DOMAIN, device_id) )
+           
+        # Remember valid device ids so we can do a cleanup of invalid ones later
+        self._valid_device_ids = valid_ids
+
+
+    async def async_cleanup_devices(self, config_entry: ConfigEntry):
+        """
+        cleanup all devices that are no longer in use
+        """
+        _LOGGER.info(f"Cleanup devices")
+
+        dr = device_registry.async_get(self.hass)
+        known_devices = device_registry.async_entries_for_config_entry(dr, config_entry.entry_id)
+
+        for device in known_devices:
+            if all(id not in self._valid_device_ids for id in device.identifiers):
+                _LOGGER.info(f"Remove obsolete device {next(iter(device.identifiers))}")
+                dr.async_remove_device(device.id)
+
+
+    async def async_cleanup_entities(self, config_entry: ConfigEntry):
+        """
+        cleanup all entities that are no longer in use
+        """
+        _LOGGER.info(f"Cleanup entities")
+
+        er = entity_registry.async_get(self.hass)
+        known_entities = entity_registry.async_entries_for_config_entry(er, self.config_entry.entry_id)
+
+        for entity in known_entities:
+            # Note that platform and domain are mixed up in entity_registry
+            valid_unique_ids = self._valid_unique_ids.get(entity.domain, [])
+
+            if entity.unique_id not in valid_unique_ids:
+                _LOGGER.info(f"Remove obsolete entity {entity.entity_id} ({entity.unique_id})")
+                er.async_remove(entity.entity_id)
 
 
     async def _async_update_data(self):

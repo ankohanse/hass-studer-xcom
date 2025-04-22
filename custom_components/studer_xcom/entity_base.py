@@ -105,6 +105,8 @@ class StuderEntityHelper:
         
         # Iterate all statusses to create sensor entities
         ha_entities = []
+        valid_unique_ids: list[str] = []
+        
         for entity in entity_map.values():
             
             platform = self._get_entity_platform(entity)
@@ -118,25 +120,16 @@ class StuderEntityHelper:
             try:
                 ha_entity = target_class(self.coordinator, entity)
                 ha_entities.append(ha_entity)
+                
+                valid_unique_ids.append(entity.unique_id)
+
             except Exception as  ex:
                 _LOGGER.warning(f"Could not instantiate {platform} entity class for {entity.object_id}. Details: {ex}")
 
-            # See if new entity already existed under another platform. If so, then remove the old entity.
-            if ha_entity:
-                for p in other_platforms:
-                    try:
-                        ha_entity_id = self.entity_registry.async_get_entity_id(p, DOMAIN, ha_entity.unique_id)
-                        if ha_entity_id:
-                            _LOGGER.info(f"Remove obsolete {ha_entity_id} that is replaced by {platform}.{ha_entity.unique_id}")
-                            self.entity_registry.async_remove(ha_entity_id)
+        # Remember valid unique_ids per platform so we can do an entity cleanup later
+        self.coordinator.set_valid_unique_ids(target_platform, valid_unique_ids)
 
-                        ha_entity_id = self.entity_registry.async_get_entity_id(p, DOMAIN, ha_entity.object_id)
-                        if ha_entity_id:
-                            _LOGGER.info(f"Remove obsolete {ha_entity_id} that is replaced by {platform}.{ha_entity.unique_id}")
-                            self.entity_registry.async_remove(ha_entity_id)
-                    except Exception as  ex:
-                        _LOGGER.warning(f"Could not remove obsolete {p}.{ha_entity.unique_id} entity. Details: {ex}")
-
+        # Now add the entities to the entity_registry
         _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self.install_id}'")
         if ha_entities:
             async_add_entities(ha_entities)
