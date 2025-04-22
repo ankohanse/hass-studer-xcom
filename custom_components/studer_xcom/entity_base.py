@@ -116,7 +116,7 @@ class StuderEntityHelper:
             # Create a Sensor, Binary_Sensor, Number, Select, Switch or other entity for this status
             ha_entity = None                
             try:
-                ha_entity = target_class(self.coordinator, self.install_id, entity)
+                ha_entity = target_class(self.coordinator, entity)
                 ha_entities.append(ha_entity)
             except Exception as  ex:
                 _LOGGER.warning(f"Could not instantiate {platform} entity class for {entity.object_id}. Details: {ex}")

@@ -10,5 +10,5 @@
     "issue_tracker": "https://github.com/ankohanse/hass-studer-xcom/issues",
     "loggers": ["custom_components.studer_xcom"],
     "requirements": ["aioxcom>=1.8.2"],
-    "version": "2025.04.2"
+    "version": "2025.04.3"
   }   
