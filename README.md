@@ -37,14 +37,12 @@ The Studer Xcom-LAN is able to simultaneously send data to the Studer online por
 
 ## HACS
 
-This custom integration is waiting to be included into the HACS default integrations.
-Until that time, you can add it as a HACS custom repository:
-1. In the HACS page, press the three dots at the top right corner.
-2. Select 'Custom Repositories'
-3. Enter repository "https://github.com/ankohanse/hass-studer-xcom" (with the quotes seems to work better)
-4. select category 'integration' and press 'Add'
-2. Restart Home Assistant.
-3. Follow the UI based [Initial Configuration](#initial-configuration)
+This custom integration is available via HACS (Home Assistant Community Store).
+1. In the HACS page, seach for 'Studer'.
+2. Click on the found item to display this readme (this page).
+3. At the bottom of the page press 'Download'
+4. Restart Home Assistant.
+5. Follow the UI based [Initial Configuration](#initial-configuration)
 
 
 ## Manual install
