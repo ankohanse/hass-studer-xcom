@@ -44,9 +44,6 @@ from .const import (
     ATTR_XCOM_STATE,
 )
 from .coordinator import (
-    StuderCoordinatorFactory,
-)
-from .coordinator import (
     StuderCoordinator,
     StuderEntityData,
 )
@@ -67,7 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     """
     Setting up the adding and updating of sensor entities
     """
-    helper = StuderEntityHelperFactory.create(hass, config_entry)
+    helper = await StuderEntityHelperFactory.async_create(hass, config_entry)
     await helper.async_setup_entry(Platform.SENSOR, StuderSensor, async_add_entities)
 
 

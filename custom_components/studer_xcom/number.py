@@ -57,7 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     """
     Setting up the adding and updating of number entities
     """
-    helper = StuderEntityHelperFactory.create(hass, config_entry)
+    helper = await StuderEntityHelperFactory.async_create(hass, config_entry)
     await helper.async_setup_entry(Platform.NUMBER, StuderNumber, async_add_entities)
 
 

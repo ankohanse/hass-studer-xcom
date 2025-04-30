@@ -2,8 +2,6 @@
 
 import asyncio
 import collections
-import async_timeout
-import json
 import logging
 import re
 
@@ -13,19 +11,14 @@ from typing import Any
 
 from homeassistant.components.diagnostics import REDACTED
 from homeassistant.components.diagnostics.util import async_redact_data
-from homeassistant.components.light import LightEntity
-from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import callback
 from homeassistant.core import HomeAssistant
 from homeassistant.core import async_get_hass
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry
 from homeassistant.helpers import entity_registry
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.storage import Store
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -198,21 +191,30 @@ class StuderEntityData(XcomDatapoint):
 class StuderCoordinatorFactory:
     
     @staticmethod
-    def create(hass: HomeAssistant, config_entry: ConfigEntry):
+    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry):
         """
         Get existing Coordinator for a config entry, or create a new one if it does not yet exist
         """
     
         # Get properties from the config_entry
-        port = config_entry.data[CONF_PORT]
         config = config_entry.data
         options = config_entry.options
+        port = config[CONF_PORT]
 
         if not COORDINATOR in hass.data[DOMAIN]:
             hass.data[DOMAIN][COORDINATOR] = {}
             
         # already created?
         coordinator = hass.data[DOMAIN][COORDINATOR].get(port, None)
+        if coordinator:
+            # Verify that config and options are still the same (== and != do a recursive dict compare)
+            if coordinator.config != config or coordinator.options != options:
+                
+                # Not the same. Force recreate of the coordinator
+                _LOGGER.debug(f"Force to use new coordinator as settings have changed")
+                await coordinator.stop()
+                coordinator = None
+
         if not coordinator:
             # Get an instance of our coordinator. This is unique to this port
             coordinator = StuderCoordinator(hass, config, options)
@@ -222,7 +224,7 @@ class StuderCoordinatorFactory:
 
 
     @staticmethod
-    def create_temp(voltage, port):
+    async def async_create_temp(voltage, port):
         """
         Get temporary Coordinator for a given port.
         This coordinator will only provide limited functionality
@@ -270,6 +272,10 @@ class StuderCoordinator(DataUpdateCoordinator):
             always_update = True,
         )
 
+        self._config: dict[str,Any] = config
+        self._options: dict[str,Any] = options
+        self._is_temp = is_temp
+
         self._voltage: str = config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
         self._port: int = config.get(CONF_PORT, DEFAULT_PORT)
 
@@ -277,9 +283,6 @@ class StuderCoordinator(DataUpdateCoordinator):
         devices_data = options.get(CONF_DEVICES, None) \
                     or config.get(CONF_DEVICES, [])
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
-
-        self._options: dict[str,Any] = options
-        self._is_temp = is_temp
 
         self._api = XcomApiTcp(self._port)
 
@@ -327,6 +330,16 @@ class StuderCoordinator(DataUpdateCoordinator):
     def is_connected(self) -> bool:
         return self._api.connected
 
+
+    @property
+    def config(self) -> dict[str,Any]:
+        return self._config
+    
+
+    @property
+    def options(self) ->dict[str,Any]:
+        return self._options
+    
 
     @property
     def is_temp(self) -> bool:
@@ -444,7 +457,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         _LOGGER.info(f"Cleanup entities")
 
         er = entity_registry.async_get(self.hass)
-        known_entities = entity_registry.async_entries_for_config_entry(er, self.config_entry.entry_id)
+        known_entities = entity_registry.async_entries_for_config_entry(er, config_entry.entry_id)
 
         for entity in known_entities:
             # Note that platform and domain are mixed up in entity_registry

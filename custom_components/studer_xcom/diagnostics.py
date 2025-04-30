@@ -33,7 +33,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, config_entry: 
     port = config_entry.data[CONF_PORT]
     _LOGGER.info(f"Retrieve diagnostics for install {port}")
     
-    coordinator: StuderCoordinator = StuderCoordinatorFactory.create(hass, config_entry)
+    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
     coordinator_data = await coordinator.async_get_diagnostics()
 
     return {

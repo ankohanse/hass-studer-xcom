@@ -74,7 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     Setting up the adding and updating of binary_sensor entities
     """
     # Add all automatically detected sensors
-    helper = StuderEntityHelperFactory.create(hass, config_entry)
+    helper = await StuderEntityHelperFactory.async_create(hass, config_entry)
     await helper.async_setup_entry(Platform.BINARY_SENSOR, StuderBinarySensor, async_add_entities)
 
 

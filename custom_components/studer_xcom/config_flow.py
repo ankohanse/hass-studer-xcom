@@ -379,7 +379,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             # Create temporary coordinator and let Xcom connect to it
             if not self._coordinator:
-                self._coordinator = StuderCoordinatorFactory.create_temp(self._voltage, self._port)
+                self._coordinator = await StuderCoordinatorFactory.async_create_temp(self._voltage, self._port)
 
             if await self._coordinator.start():
                 _LOGGER.info("Xcom client connected")
@@ -988,7 +988,6 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             
             case CONFIG_MODE.CONFIG:
                self.hass.config_entries.async_update_entry(entry=self.config_entry, title=title, data=data, options = options)
-               await self.hass.config_entries.async_reload(self.config_entry.entry_id)
                return self.async_create_entry(title=None, data=None)
             
             

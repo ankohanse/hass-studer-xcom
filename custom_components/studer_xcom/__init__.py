@@ -75,7 +75,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     _LOGGER.info(f"Setup config entry for port '{port}")
 
     # Get  our Coordinator instance for this port and start it
-    coordinator: StuderCoordinator = StuderCoordinatorFactory.create(hass, config_entry)
+    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
     if not await coordinator.start():
         raise ConfigEntryNotReady(f"Timout while waiting for Studer Xcom client to connect to our port {port}.")
     
@@ -97,8 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     await coordinator.async_cleanup_devices(config_entry)
 
     # Reload entry when it is updated
-    # config_entry.async_on_unload(config_entry.add_update_listener(_async_update_listener))
-    config_entry.add_update_listener(_async_update_listener)
+    config_entry.async_on_unload(config_entry.add_update_listener(_async_update_listener))
 
     return True
 
@@ -107,7 +106,7 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     """Unloading the Studer Xcom platforms."""
 
     # Get  our Coordinator instance for this port and stop it
-    coordinator: StuderCoordinator = StuderCoordinatorFactory.create(hass, config_entry)
+    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
     await coordinator.stop()
 
     success = await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)

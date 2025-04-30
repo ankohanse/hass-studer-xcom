@@ -51,7 +51,7 @@ _LOGGER = logging.getLogger(__name__)
 class StuderEntityHelperFactory:
     
     @staticmethod
-    def create(hass: HomeAssistant, config_entry: ConfigEntry):
+    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry):
         """
         Get existing helper for a config entry, or create a new one if it does not yet exist
         """
@@ -68,8 +68,11 @@ class StuderEntityHelperFactory:
         # already created?
         helper = hass.data[DOMAIN][HELPER].get(install_id, None)
         if not helper:
+            # Get an instance of the DabPumpsCoordinator for this install_id
+            coordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
+        
             # Get an instance of our helper. This is unique to this install_id
-            helper = StuderEntityHelper(hass, config_entry, install_id, options)
+            helper = StuderEntityHelper(hass, coordinator, install_id, options)
             hass.data[DOMAIN][HELPER][install_id] = helper
             
         return helper
@@ -78,12 +81,10 @@ class StuderEntityHelperFactory:
 class StuderEntityHelper:
     """My custom helper to provide common functions."""
     
-    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, install_id, options):
+    def __init__(self, hass: HomeAssistant, coordinator: StuderCoordinator, install_id: str, options: dict[str,Any]):
+        self.coordinator = coordinator
         self.install_id = install_id
         self.options = options
-
-        # Get an instance of the DabPumpsCoordinator for this install_id
-        self.coordinator = StuderCoordinatorFactory.create(hass, config_entry)
 
         # Get entity registry
         self.entity_registry = entity_registry.async_get(hass)
