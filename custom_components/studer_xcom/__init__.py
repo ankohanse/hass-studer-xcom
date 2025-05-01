@@ -30,10 +30,8 @@ from homeassistant.const import (
 from .const import (
     DOMAIN,
     PLATFORMS,
-    API,
     COORDINATOR,
     HELPER,
-    DEFAULT_PORT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,20 +41,10 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the component."""
-    _clear_hass_data(hass)
-
     for entry in hass.config_entries.async_entries(DOMAIN):
         if not isinstance(entry.unique_id, str):
             hass.config_entries.async_update_entry(entry, unique_id=str(entry.unique_id))
     return True
-
-
-def _clear_hass_data(hass):
-    hass.data[DOMAIN] = {
-        API: {},         # key is port
-        COORDINATOR: {}, # key is port
-        HELPER: {}       # key is port
-    }
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -110,10 +98,6 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     await coordinator.stop()
 
     success = await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
-    if success:
-        # Force re-create of Coordinator on a subsequent async_setup_entry
-        _clear_hass_data(hass)
-
     return success
 
 

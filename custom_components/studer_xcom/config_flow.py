@@ -151,7 +151,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             case CONFIG_MODE.CONFIG:
                 config_entry = self.config_entry    # self.hass.config_entries.async_get_entry(self.handler)
 
-        _LOGGER.debug(f"exiting config_entry: {config_entry}")
+        _LOGGER.debug(f"existing config_entry: {config_entry}")
 
         configs = config_entry.data or {} if config_entry else {}
         options = config_entry.options or {} if config_entry else {}

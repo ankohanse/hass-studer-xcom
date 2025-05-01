@@ -56,24 +56,21 @@ class StuderEntityHelperFactory:
         Get existing helper for a config entry, or create a new one if it does not yet exist
         """
     
-        # Get properties from the config_entry
-        port = config_entry.data[CONF_PORT]
-        options = config_entry.options
-
-        install_id = port
-
-        if not HELPER in hass.data[DOMAIN]:
-            hass.data[DOMAIN][HELPER] = {}
-            
+        # Sanity check
+        if not DOMAIN in hass.data:
+            hass.data[DOMAIN] = {}
+        if not config_entry.entry_id in hass.data[DOMAIN]:
+            hass.data[DOMAIN][config_entry.entry_id] = {}
+                      
         # already created?
-        helper = hass.data[DOMAIN][HELPER].get(install_id, None)
+        helper = hass.data[DOMAIN][config_entry.entry_id].get(HELPER, None)
         if not helper:
-            # Get an instance of the DabPumpsCoordinator for this install_id
+            # Get an instance of the DabPumpsCoordinator
             coordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
         
-            # Get an instance of our helper. This is unique to this install_id
-            helper = StuderEntityHelper(hass, coordinator, install_id, options)
-            hass.data[DOMAIN][HELPER][install_id] = helper
+            # Get an instance of our helper. This is unique to this config_entry
+            helper = StuderEntityHelper(hass, coordinator)
+            hass.data[DOMAIN][config_entry.entry_id][HELPER] = helper
             
         return helper
 
@@ -81,13 +78,9 @@ class StuderEntityHelperFactory:
 class StuderEntityHelper:
     """My custom helper to provide common functions."""
     
-    def __init__(self, hass: HomeAssistant, coordinator: StuderCoordinator, install_id: str, options: dict[str,Any]):
-        self.coordinator = coordinator
-        self.install_id = install_id
-        self.options = options
-
-        # Get entity registry
-        self.entity_registry = entity_registry.async_get(hass)
+    def __init__(self, hass: HomeAssistant, coordinator: StuderCoordinator):
+        self._coordinator = coordinator
+        self._entity_registry = entity_registry.async_get(hass)
         
     
     async def async_setup_entry(self, target_platform, target_class, async_add_entities: AddEntitiesCallback):
@@ -95,7 +88,7 @@ class StuderEntityHelper:
         Setting up the adding and updating of sensor and binary_sensor entities
         """    
         # Get data from the coordinator
-        entity_map = self.coordinator.data
+        entity_map = self._coordinator.data
         
         if not entity_map:
             # If data returns False or is empty, log an error and return
@@ -119,7 +112,7 @@ class StuderEntityHelper:
             # Create a Sensor, Binary_Sensor, Number, Select, Switch or other entity for this status
             ha_entity = None                
             try:
-                ha_entity = target_class(self.coordinator, entity)
+                ha_entity = target_class(self._coordinator, entity)
                 ha_entities.append(ha_entity)
                 
                 valid_unique_ids.append(entity.unique_id)
@@ -128,10 +121,10 @@ class StuderEntityHelper:
                 _LOGGER.warning(f"Could not instantiate {platform} entity class for {entity.object_id}. Details: {ex}")
 
         # Remember valid unique_ids per platform so we can do an entity cleanup later
-        self.coordinator.set_valid_unique_ids(target_platform, valid_unique_ids)
+        self._coordinator.set_valid_unique_ids(target_platform, valid_unique_ids)
 
         # Now add the entities to the entity_registry
-        _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self.install_id}'")
+        _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self._coordinator.install_id}'")
         if ha_entities:
             async_add_entities(ha_entities)
     

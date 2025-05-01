@@ -33,7 +33,6 @@ PLATFORMS: list[Platform] = [
 TITLE_FMT  = "Studer via Xcom port {port}"
 
 HUB = "Hub"
-API = "Api"
 COORDINATOR = "Coordinator"
 HELPER = "Helper"
 

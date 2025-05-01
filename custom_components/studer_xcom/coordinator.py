@@ -196,16 +196,18 @@ class StuderCoordinatorFactory:
         Get existing Coordinator for a config entry, or create a new one if it does not yet exist
         """
     
+        # Sanity check
+        if not DOMAIN in hass.data:
+            hass.data[DOMAIN] = {}
+        if not config_entry.entry_id in hass.data[DOMAIN]:
+            hass.data[DOMAIN][config_entry.entry_id] = {}
+            
         # Get properties from the config_entry
         config = config_entry.data
         options = config_entry.options
-        port = config[CONF_PORT]
 
-        if not COORDINATOR in hass.data[DOMAIN]:
-            hass.data[DOMAIN][COORDINATOR] = {}
-            
         # already created?
-        coordinator = hass.data[DOMAIN][COORDINATOR].get(port, None)
+        coordinator = hass.data[DOMAIN][config_entry.entry_id].get(COORDINATOR, None)
         if coordinator:
             # Verify that config and options are still the same (== and != do a recursive dict compare)
             if coordinator.config != config or coordinator.options != options:
@@ -216,9 +218,9 @@ class StuderCoordinatorFactory:
                 coordinator = None
 
         if not coordinator:
-            # Get an instance of our coordinator. This is unique to this port
+            # Get an instance of our coordinator. This is unique to this config_entry
             coordinator = StuderCoordinator(hass, config, options)
-            hass.data[DOMAIN][COORDINATOR][port] = coordinator
+            hass.data[DOMAIN][config_entry.entry_id][COORDINATOR] = coordinator
             
         return coordinator
 
@@ -231,8 +233,12 @@ class StuderCoordinatorFactory:
         (connection test and device discovery)
         """
     
-        # Get properties from the config_entry
+        # Sanity check
         hass = async_get_hass()
+        if not DOMAIN in hass.data:
+            hass.data[DOMAIN] = {}
+            
+        # Mimick properties from the config_entry
         config: dict[str,Any] = {
             CONF_VOLTAGE: voltage,
             CONF_PORT: port,
@@ -241,13 +247,16 @@ class StuderCoordinatorFactory:
             CONF_DEVICES: [],
         }
         
-        # Already have a coordinator for this port?
+        # Already have a coordinator for this port and voltage?
         coordinator = None
-        if DOMAIN in hass.data and COORDINATOR in hass.data[DOMAIN]:
-            coordinator = hass.data[DOMAIN][COORDINATOR].get(port, None)
+        for entry in hass.data[DOMAIN].values():
+            c = entry.get(COORDINATOR, None)
+            if c and c.config.get(CONF_PORT, None)==port and c.config.get(CONF_VOLTAGE, None)==voltage:
+                coordinator = c
+                break
 
         if not coordinator:
-            # Get a temporary instance of our coordinator. This is unique to this port
+            # Get a temporary instance of our coordinator. This is unique to this port and voltage
             _LOGGER.debug(f"create temp coordinator, config: {config}, options: {options}")
             coordinator = StuderCoordinator(hass, config, options, is_temp=True)
         else:
@@ -350,6 +359,11 @@ class StuderCoordinator(DataUpdateCoordinator):
     def time_zone(self) -> tzinfo | None:
         return dt_util.get_time_zone(self._hass.config.time_zone)
 
+
+    @property
+    def install_id(self) -> str:
+        return self._install_id
+    
 
     def set_valid_unique_ids(self, platform: Platform, ids: list[str]):
         self._valid_unique_ids[platform] = ids
