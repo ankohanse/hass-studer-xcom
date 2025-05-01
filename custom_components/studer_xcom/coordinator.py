@@ -30,6 +30,7 @@ from homeassistant.const import (
 
 from .const import (
     DOMAIN,
+    HELPER,
     NAME,
     MANUFACTURER,
     COORDINATOR,
@@ -213,14 +214,16 @@ class StuderCoordinatorFactory:
             if coordinator.config != config or coordinator.options != options:
                 
                 # Not the same. Force recreate of the coordinator
-                _LOGGER.debug(f"Force to use new coordinator as settings have changed")
                 await coordinator.stop()
                 coordinator = None
 
         if not coordinator:
             # Get an instance of our coordinator. This is unique to this config_entry
+            _LOGGER.debug(f"Create coordinator")
             coordinator = StuderCoordinator(hass, config, options)
+
             hass.data[DOMAIN][config_entry.entry_id][COORDINATOR] = coordinator
+            hass.data[DOMAIN][config_entry.entry_id][HELPER] = None # Force re-create of helper using this new coordinator
             
         return coordinator
 
