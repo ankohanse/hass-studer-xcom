@@ -30,7 +30,6 @@ from homeassistant.const import (
 
 from .const import (
     DOMAIN,
-    HELPER,
     NAME,
     MANUFACTURER,
     COORDINATOR,
@@ -200,15 +199,15 @@ class StuderCoordinatorFactory:
         # Sanity check
         if not DOMAIN in hass.data:
             hass.data[DOMAIN] = {}
-        if not config_entry.entry_id in hass.data[DOMAIN]:
-            hass.data[DOMAIN][config_entry.entry_id] = {}
+        if not COORDINATOR in hass.data[DOMAIN]:
+            hass.data[DOMAIN][COORDINATOR] = {}
             
         # Get properties from the config_entry
         config = config_entry.data
         options = config_entry.options
 
         # already created?
-        coordinator = hass.data[DOMAIN][config_entry.entry_id].get(COORDINATOR, None)
+        coordinator = hass.data[DOMAIN][COORDINATOR].get(config_entry.entry_id, None)
         if coordinator:
             # Verify that config and options are still the same (== and != do a recursive dict compare)
             if coordinator.config != config or coordinator.options != options:
@@ -222,8 +221,7 @@ class StuderCoordinatorFactory:
             _LOGGER.debug(f"Create coordinator")
             coordinator = StuderCoordinator(hass, config, options)
 
-            hass.data[DOMAIN][config_entry.entry_id][COORDINATOR] = coordinator
-            hass.data[DOMAIN][config_entry.entry_id][HELPER] = None # Force re-create of helper using this new coordinator
+            hass.data[DOMAIN][COORDINATOR][config_entry.entry_id] = coordinator
             
         return coordinator
 
@@ -240,6 +238,8 @@ class StuderCoordinatorFactory:
         hass = async_get_hass()
         if not DOMAIN in hass.data:
             hass.data[DOMAIN] = {}
+        if not COORDINATOR in hass.data[DOMAIN]:
+            hass.data[DOMAIN][COORDINATOR] = {}
             
         # Mimick properties from the config_entry
         config: dict[str,Any] = {
@@ -251,12 +251,10 @@ class StuderCoordinatorFactory:
         }
         
         # Already have a coordinator for this port and voltage?
-        coordinator = None
-        for entry in hass.data[DOMAIN].values():
-            c = entry.get(COORDINATOR, None)
-            if c and c.config.get(CONF_PORT, None)==port and c.config.get(CONF_VOLTAGE, None)==voltage:
-                coordinator = c
-                break
+        coordinator = next( 
+            (c for c in hass.data[DOMAIN][COORDINATOR].values() if c.config.get(CONF_PORT, None)==port and c.config.get(CONF_VOLTAGE, None)==voltage), 
+            None
+        )
 
         if not coordinator:
             # Get a temporary instance of our coordinator. This is unique to this port and voltage

@@ -25,7 +25,6 @@ from homeassistant.const import (
 from .const import (
     DOMAIN,
     PLATFORMS,
-    HELPER,
     CONF_OPTIONS,
     BINARY_SENSOR_VALUES_ON,
     BINARY_SENSOR_VALUES_OFF,
@@ -53,26 +52,16 @@ class StuderEntityHelperFactory:
     @staticmethod
     async def async_create(hass: HomeAssistant, config_entry: ConfigEntry):
         """
-        Get existing helper for a config entry, or create a new one if it does not yet exist
+        Get entity helper for a config entry.
+        The entry is short lived (only during init) and does not contain state data,
+        therefore no need to cache it in hass.data
         """
     
-        # Sanity check
-        if not DOMAIN in hass.data:
-            hass.data[DOMAIN] = {}
-        if not config_entry.entry_id in hass.data[DOMAIN]:
-            hass.data[DOMAIN][config_entry.entry_id] = {}
-                      
-        # already created?
-        helper = hass.data[DOMAIN][config_entry.entry_id].get(HELPER, None)
-        if not helper:
-            # Get an instance of the DabPumpsCoordinator
-            coordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
-        
-            # Get an instance of our helper. This is unique to this config_entry
-            helper = StuderEntityHelper(hass, coordinator)
-            hass.data[DOMAIN][config_entry.entry_id][HELPER] = helper
-            
-        return helper
+        # Get an instance of the DabPumpsCoordinator
+        coordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
+    
+        # Get an instance of our helper. This is unique to this config_entry
+        return StuderEntityHelper(hass, coordinator)
 
 
 class StuderEntityHelper:

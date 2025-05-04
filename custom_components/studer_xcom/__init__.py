@@ -30,8 +30,6 @@ from homeassistant.const import (
 from .const import (
     DOMAIN,
     PLATFORMS,
-    COORDINATOR,
-    HELPER,
 )
 
 _LOGGER = logging.getLogger(__name__)

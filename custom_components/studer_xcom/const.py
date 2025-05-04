@@ -34,7 +34,6 @@ TITLE_FMT  = "Studer via Xcom port {port}"
 
 HUB = "Hub"
 COORDINATOR = "Coordinator"
-HELPER = "Helper"
 
 # configuration items and their defaults
 DEFAULT_VOLTAGE = VOLTAGE.AC240
