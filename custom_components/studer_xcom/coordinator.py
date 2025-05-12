@@ -296,17 +296,21 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         self._api = XcomApiTcp(self._port)
 
-        self._install_id = StuderCoordinator.create_id(self._port)
+        # Id handling
+        self._object_id_base = StuderCoordinator.create_id(self._port) # Base for object_id
+        self._unique_id_base = StuderCoordinator.create_id(self._port) # Base for internal unique_id (todo: set to client MAC)
+        self._device_id_base = StuderCoordinator.create_id(self._port) # Base for device_id (todo: set to client MAC)
+        self._valid_unique_ids: dict[Platform, list[str]] = {}
+        self._valid_device_ids: list[tuple[str,str]] = []
+
+        # Coordinator data prepared for the entities
         self._entity_map: dict[str,StuderEntityData] = {}
         self._entity_map_ts = datetime.now()
         self.data = self._get_data()
 
-        self._valid_unique_ids: dict[Platform, list[str]] = {}
-        self._valid_device_ids: list[tuple[str,str]] = []
-
         # Cached data to persist updated params saved into device RAM
         self._hass = hass
-        self._store_key = self._install_id
+        self._store_key = StuderCoordinator.create_id(self._port)
         self._store = StuderCoordinatorStore(hass, self._store_key)
         self._cache = {}
         self._cache_last_write = datetime.min
@@ -361,11 +365,6 @@ class StuderCoordinator(DataUpdateCoordinator):
         return dt_util.get_time_zone(self._hass.config.time_zone)
 
 
-    @property
-    def install_id(self) -> str:
-        return self._install_id
-    
-
     def set_valid_unique_ids(self, platform: Platform, ids: list[str]):
         self._valid_unique_ids[platform] = ids
 
@@ -405,11 +404,11 @@ class StuderCoordinator(DataUpdateCoordinator):
             entity = StuderEntityData(
                 param = param,
 
-                object_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code, param.nr),
-                unique_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code, param.nr),
+                object_id = StuderCoordinator.create_id(PREFIX_ID, self._object_id_base, device.code, param.nr),
+                unique_id = StuderCoordinator.create_id(PREFIX_ID, self._unique_id_base, device.code, param.nr),
 
                 # Device associated with this entity
-                device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code),
+                device_id = StuderCoordinator.create_id(PREFIX_ID, self._device_id_base, device.code),
                 device_code = device.code,
                 device_addr = device.addr,
             )
@@ -430,7 +429,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         for device in self._devices:
             family = XcomDeviceFamilies.getById(device.family_id)
-            device_id = StuderCoordinator.create_id(PREFIX_ID, self._install_id, device.code)
+            device_id = StuderCoordinator.create_id(PREFIX_ID, self._device_id_base, device.code)
 
             _LOGGER.debug(f"Create device {device_id}")
 
@@ -671,7 +670,9 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         return {
             "data": {
-                "install_id": self._install_id,
+                "object_id_base": self._object_id_base,
+                "unique_id_base": self._unique_id_base,
+                "device_id_base": self._device_id_base,
                 "entity_map_ts": str(self._entity_map_ts),
                 "entity_map": entity_map,
             },

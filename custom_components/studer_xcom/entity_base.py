@@ -84,8 +84,6 @@ class StuderEntityHelper:
             _LOGGER.warning(f"Failed to fetch entity data")
             return
         
-        other_platforms = [p for p in PLATFORMS if p != target_platform]
-        
         # Iterate all statusses to create sensor entities
         ha_entities = []
         valid_unique_ids: list[str] = []
@@ -93,7 +91,6 @@ class StuderEntityHelper:
         for entity in entity_map.values():
             
             platform = self._get_entity_platform(entity)
-            
             if platform != target_platform:
                 # This status will be handled via another platform
                 continue
@@ -113,7 +110,7 @@ class StuderEntityHelper:
         self._coordinator.set_valid_unique_ids(target_platform, valid_unique_ids)
 
         # Now add the entities to the entity_registry
-        _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self._coordinator.install_id}'")
+        _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self._coordinator.config[CONF_PORT]}'")
         if ha_entities:
             async_add_entities(ha_entities)
     
