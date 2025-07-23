@@ -191,7 +191,7 @@ class StuderEntityData(XcomDatapoint):
 class StuderCoordinatorFactory:
     
     @staticmethod
-    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry):
+    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry, force_create: bool = False):
         """
         Get existing Coordinator for a config entry, or create a new one if it does not yet exist
         """
@@ -211,8 +211,10 @@ class StuderCoordinatorFactory:
         if coordinator:
             # Verify that config and options are still the same (== and != do a recursive dict compare)
             if coordinator.config != config or coordinator.options != options:
-                
                 # Not the same. Force recreate of the coordinator
+                force_create = True
+
+            if force_create:
                 await coordinator.stop()
                 coordinator = None
 

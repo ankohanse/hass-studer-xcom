@@ -60,8 +60,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     
     _LOGGER.info(f"Setup config entry for port '{port}")
 
-    # Get  our Coordinator instance for this port and start it
-    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
+    # Get a Coordinator instance for this port and start it
+    # We force to create a fresh instance, otherwise data updates don't happen if this setup_entry was triggered by a reload
+    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry, force_create=True)
     if not await coordinator.start():
         raise ConfigEntryNotReady(f"Timout while waiting for Studer Xcom client to connect to our port {port}.")
     
