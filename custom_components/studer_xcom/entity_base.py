@@ -10,6 +10,15 @@ from homeassistant.components.sensor import SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
+from homeassistant.const import PERCENTAGE
+from homeassistant.const import UnitOfApparentPower
+from homeassistant.const import UnitOfElectricCurrent
+from homeassistant.const import UnitOfElectricPotential
+from homeassistant.const import UnitOfEnergy
+from homeassistant.const import UnitOfFrequency
+from homeassistant.const import UnitOfPower
+from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfTime
 from homeassistant.core import callback
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -205,36 +214,36 @@ class StuderEntity(Entity):
     def _convert_to_unit(self) -> str|None:
         """Convert from Studer units to Home Assistant units"""
         match self._entity.unit:
-            case '°C':          return '°C' 
-            case '°F':          return '°F'
-            case 'days':        return 'day'
-            case 'h':           return 'h'
-            case 'hours':       return 'h'
-            case 'min':         return 'min'
-            case 'minutes':     return 'min'
-            case 'Minutes':     return 'min'
-            case 's':           return 's'
-            case 'sec':         return 's'
-            case 'seconds':     return 's'
-            case 'Seconds':     return 's'
-            case '%':           return '%'
-            case '% SOC':       return '%'
-            case 'V':           return 'V'
-            case 'Vac':         return 'V'
-            case 'Vdc':         return 'V'
-            case 'A':           return 'A'
-            case 'Aac':         return 'A'
-            case 'Adc':         return 'A'
+            case '°C':          return UnitOfTemperature.CELSIUS 
+            case '°F':          return UnitOfTemperature.FAHRENHEIT
+            case 'days':        return UnitOfTime.DAYS
+            case 'h':           return UnitOfTime.HOURS
+            case 'hours':       return UnitOfTime.HOURS
+            case 'min':         return UnitOfTime.MINUTES
+            case 'minutes':     return UnitOfTime.MINUTES
+            case 'Minutes':     return UnitOfTime.MINUTES
+            case 's':           return UnitOfTime.SECONDS
+            case 'sec':         return UnitOfTime.SECONDS
+            case 'seconds':     return UnitOfTime.SECONDS
+            case 'Seconds':     return UnitOfTime.SECONDS
+            case '%':           return PERCENTAGE
+            case '% SOC':       return PERCENTAGE
+            case 'V':           return UnitOfElectricPotential.VOLT
+            case 'Vac':         return UnitOfElectricPotential.VOLT
+            case 'Vdc':         return UnitOfElectricPotential.VOLT
+            case 'A':           return UnitOfElectricCurrent.AMPERE
+            case 'Aac':         return UnitOfElectricCurrent.AMPERE
+            case 'Adc':         return UnitOfElectricCurrent.AMPERE
             case 'Ah':          return 'Ah'
             case 'kAh':         return 'kAh'
-            case 'mW':          return 'mW'
-            case 'W':           return 'W'
-            case 'kW':          return 'kW'
-            case 'kWh':         return 'kWh'
-            case 'MWh':         return 'MWh'
-            case 'VA':          return 'VA'
-            case 'kVA':         self._unit_weight = 1000; return 'VA'
-            case 'Hz':          return 'Hz'
+            case 'mW':          return UnitOfPower.MEGA_WATT
+            case 'W':           return UnitOfPower.WATT
+            case 'kW':          return UnitOfPower.KILO_WATT
+            case 'kWh':         return UnitOfEnergy.KILO_WATT_HOUR
+            case 'MWh':         return UnitOfEnergy.MEGA_WATT_HOUR
+            case 'VA':          return UnitOfApparentPower.VOLT_AMPERE
+            case 'kVA':         self._unit_weight = 1000; return UnitOfApparentPower.VOLT_AMPERE
+            case 'Hz':          return UnitOfFrequency.HERTZ
             case 'Ctmp':        return None
             case 'Cdyn':        return None
             case '':            return None
