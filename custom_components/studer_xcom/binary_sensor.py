@@ -14,6 +14,8 @@ from homeassistant.const import CONF_NAME
 from homeassistant.const import CONF_UNIQUE_ID
 from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
+from homeassistant.const import STATE_ON
+from homeassistant.const import STATE_OFF
 from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
@@ -49,8 +51,10 @@ from .coordinator import (
     StuderEntityData,
 )
 from .entity_base import (
-    StuderEntityHelperFactory,
     StuderEntity,
+)
+from .entity_helper import (
+    StuderEntityHelperFactory,
 )
 
 from aioxcom import (
@@ -92,56 +96,47 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         StuderEntity.__init__(self, coordinator, entity, Platform.BINARY_SENSOR)
         
         # The unique identifier for this sensor within Home Assistant
-        self.object_id = entity.object_id
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
-        self._attr_unique_id = entity.unique_id
 
-        # Standard HA entity attributes        
-        self._attr_has_entity_name = True
-        self._attr_name = entity.name
-        self._name = entity.name
+        # update creation-time only attributes
+        _LOGGER.debug(f"Create entity '{self.entity_id}'")
         
         self._attr_device_class = None
-
-        self._attr_device_info = DeviceInfo(
-            identifiers = {(DOMAIN, entity.device_id)},
-        )
         
-        # Custom extra attributes for the entity
-        self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state = None
-
+        self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
+        
         # Create all attributes
         self._update_value(entity, True)
     
     
-    @property
-    def suggested_object_id(self) -> str | None:
-        """Return input for object id."""
-        return self.object_id
-    
-    
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID for use in home assistant."""
-        return self._attr_unique_id
-    
-    
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._attr_name
-        
-        
-    @property
-    def extra_state_attributes(self) -> dict[str, str | list[str]]:
-        """Return the state attributes."""
-        if self._xcom_state:
-            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
+    async def async_added_to_hass(self) -> None:
+        """
+        Handle when the entity has been added
+        """
+        await super().async_added_to_hass()
 
-        return self._attributes        
-    
-    
+        # Get last data from previous HA run                      
+        last_state = await self.async_get_last_state()
+        if last_state:
+            try:
+                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
+
+                if last_state.state == STATE_ON:
+                    self._attr_is_on = True
+
+                elif last_state.state == STATE_OFF:
+                    self._attr_is_on = False
+
+                else: # STATE_UNKNOWN or STATE_UNAVAILABLE
+                    pass
+            except:
+                pass
+
+        last_extra = await self.async_get_last_extra_data()
+        if last_extra:
+            self._xcom_state = last_extra.as_dict().get(ATTR_XCOM_STATE)
+
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -199,4 +194,5 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
             changed = True
             
         return changed
+    
     

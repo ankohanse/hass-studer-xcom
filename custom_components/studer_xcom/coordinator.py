@@ -322,13 +322,16 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._diag_statistics = {}
 
 
-    def _get_data(self):
+    def _get_data(self) -> dict[str, StuderEntityData]:
         return self._entity_map
 
 
     async def start(self) -> bool:
         self._entity_map: dict[str,StuderEntityData] = await self._create_entity_map()
         self._entity_map_ts = datetime.now()
+
+        # Set initial data to construct the entities from     
+        self.data = self._get_data()
         
         # Make sure our cache is available
         await self._async_read_cache()
@@ -338,6 +341,10 @@ class StuderCoordinator(DataUpdateCoordinator):
 
     
     async def stop(self):
+
+        # Write most recent values into the cache
+        await self._async_persist_cache(force=True)
+        
         # Stop our Api
         await self._api.stop()
 
@@ -572,12 +579,12 @@ class StuderCoordinator(DataUpdateCoordinator):
             self._cache = {}
 
 
-    async def _async_persist_cache(self):
+    async def _async_persist_cache(self, force: bool = False):
         if self._is_temp:
             return
         
         if self._store:
-            if (datetime.now() - self._cache_last_write).total_seconds() > CACHE_WRITE_PERIOD:
+            if force or (datetime.now() - self._cache_last_write).total_seconds() > CACHE_WRITE_PERIOD:
             
                 _LOGGER.debug(f"Persist cache")
                 self._cache_last_write = datetime.now()

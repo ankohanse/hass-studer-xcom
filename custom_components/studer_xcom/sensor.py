@@ -7,7 +7,7 @@ import homeassistant.helpers.config_validation as cv
 
 from homeassistant import config_entries
 from homeassistant import exceptions
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorExtraStoredData
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.sensor import ENTITY_ID_FORMAT
@@ -48,9 +48,10 @@ from .coordinator import (
     StuderEntityData,
 )
 from .entity_base import (
-    StuderEntityHelperFactory,
-    StuderEntityHelper,
     StuderEntity,
+)
+from .entity_helper import (
+    StuderEntityHelperFactory,
 )
 from aioxcom import (
     FORMAT,
@@ -79,58 +80,65 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         StuderEntity.__init__(self, coordinator, entity, Platform.SENSOR)
         
         # The unique identifier for this sensor within Home Assistant
-        self.object_id = entity.object_id
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
-        self._attr_unique_id = entity.unique_id
 
-        # Standard HA entity attributes        
-        self._attr_has_entity_name = True
-        self._attr_name = entity.name
-        self._name = entity.name
+        self._entity_format: FORMAT = entity.format
+
+        # update creation-time only attributes
+        _LOGGER.debug(f"Create entity '{self.entity_id}'")
         
         self._attr_state_class = self.get_sensor_state_class()
         self._attr_entity_category = self.get_entity_category()
         self._attr_device_class = self.get_sensor_device_class() 
 
-        self._attr_device_info = DeviceInfo(
-            identifiers = {(DOMAIN, entity.device_id)},
-        )
-
-        # Custom extra attributes for the entity
-        self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state = None
+        self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
 
         # Update value
         self._update_value(entity, True)
-    
-    
-    @property
-    def suggested_object_id(self) -> str | None:
-        """Return input for object id."""
-        return self.object_id
-    
-    
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID for use in home assistant."""
-        return self._attr_unique_id
-    
-    
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._attr_name
         
-        
-    @property
-    def extra_state_attributes(self) -> dict[str, str | list[str]]:
-        """Return the state attributes."""
-        if self._xcom_state:
-            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
 
-        return self._attributes        
-    
-    
+    async def async_added_to_hass(self) -> None:
+        """
+        Handle when the entity has been added
+        """
+        await super().async_added_to_hass()
+
+        # Get last data from previous HA run                      
+        last_state = await self.async_get_last_state()
+        if last_state:
+            try:
+                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
+
+                match self._entity_format:
+                    case FORMAT.FLOAT:
+                        # Convert to float
+                        attr_precision = self._attr_suggested_display_precision or 3
+                        attr_val = round(float(last_state.state), attr_precision) if last_state.state!=None else None
+
+                    case FORMAT.INT32:
+                        # Convert to int
+                        attr_precision = None
+                        attr_val = int(last_state.state) if last_state.state!=None else None
+                            
+                    case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+                        # Convert to str
+                        attr_precision = None
+                        attr_val = str(last_state.state) if last_state.state!=None else None
+
+                    case _:
+                        return
+                    
+                self._attr_state = attr_val
+                self._attr_native_value = attr_val
+
+            except:
+                pass
+
+        last_extra = await self.async_get_last_extra_data()
+        if last_extra:
+            self._xcom_state = last_extra.as_dict().get(ATTR_XCOM_STATE)
+
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -153,8 +161,7 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = 3
-                attr_digits = 3
-                attr_val = round(float(entity.value) * weight, attr_digits) if entity.value!=None and not math.isnan(entity.value) else None
+                attr_val = round(float(entity.value) * weight, attr_precision) if entity.value!=None and not math.isnan(entity.value) else None
                 attr_unit = self.get_unit()
 
             case FORMAT.INT32:
@@ -184,6 +191,7 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
             if not force:
                 _LOGGER.debug(f"Sensor change value {self.object_id} from {self._attr_native_value} to {attr_val}")
 
+            self._attr_state = attr_val
             self._attr_native_value = attr_val
             self._attr_native_unit_of_measurement = attr_unit
             self._attr_suggested_display_precision = attr_precision

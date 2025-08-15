@@ -39,9 +39,10 @@ from .coordinator import (
     StuderEntityData,
 )
 from .entity_base import (
-    StuderEntityHelperFactory,
-    StuderEntityHelper,
     StuderEntity,
+)
+from .entity_helper import (
+    StuderEntityHelperFactory,
 )
 from aioxcom import (
     FORMAT,
@@ -70,60 +71,45 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         StuderEntity.__init__(self, coordinator, entity, Platform.SELECT)
         
         # The unique identifier for this sensor within Home Assistant
-        self.object_id = entity.object_id
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
-        self._attr_unique_id = entity.unique_id
 
-        # Standard HA entity attributes
-        self._attr_has_entity_name = True
-        self._attr_name = entity.name
-        self._name = entity.name
+        # update creation-time only attributes
+        _LOGGER.debug(f"Create entity '{self.entity_id}'")
         
         self._attr_options = list(entity.options.values())
         
         self._attr_entity_category = self.get_entity_category()
         self._attr_device_class = None
         
-        self._attr_device_info = DeviceInfo(
-            identifiers = {(DOMAIN, entity.device_id)},
-        )
-
-        # Custom extra attributes for the entity
-        self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_flash_state = None
-        self._xcom_ram_state = None
+        self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
 
         # Update value
         self._update_value(entity, True)
     
     
-    @property
-    def suggested_object_id(self) -> str | None:
-        """Return input for object id."""
-        return self.object_id
-    
-    
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID for use in home assistant."""
-        return self._attr_unique_id
-    
-    
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._attr_name
-        
-        
-    @property
-    def extra_state_attributes(self) -> dict[str, str | list[str]]:
-        """Return the state attributes."""
-        if self._xcom_flash_state:
-            self._attributes[ATTR_XCOM_FLASH_STATE] = self._xcom_flash_state
-        if self._xcom_ram_state:
-            self._attributes[ATTR_XCOM_RAM_STATE] = self._xcom_ram_state
+    async def async_added_to_hass(self) -> None:
+        """
+        Handle when the entity has been added
+        """
+        await super().async_added_to_hass()
 
-        return self._attributes        
+        # Get last data from previous HA run                      
+        last_state = await self.async_get_last_state()
+        if last_state:
+            try:
+                if last_state.state in self._attr_options:
+                    _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
+            
+                    self._attr_current_option = last_state.state
+            except:
+                pass
+
+        last_extra = await self.async_get_last_extra_data()
+        if last_extra:
+            dict_extra = last_extra.as_dict()
+            self._xcom_flash_state = dict_extra.get(ATTR_XCOM_FLASH_STATE)
+            self._xcom_ram_state = dict_extra.get(ATTR_XCOM_RAM_STATE)
+    
     
     @callback
     def _handle_coordinator_update(self) -> None:

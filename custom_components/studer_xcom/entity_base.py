@@ -1,8 +1,9 @@
+from dataclasses import asdict, dataclass
 import logging
 import async_timeout
 
 from datetime import timedelta
-from typing import Any
+from typing import Any, Self
 
 from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
@@ -24,6 +25,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 
 import homeassistant.helpers.entity_registry as entity_registry
 
@@ -32,6 +34,9 @@ from homeassistant.const import (
 )
 
 from .const import (
+    ATTR_XCOM_FLASH_STATE,
+    ATTR_XCOM_RAM_STATE,
+    ATTR_XCOM_STATE,
     DOMAIN,
     PLATFORMS,
     CONF_OPTIONS,
@@ -56,141 +61,33 @@ from aioxcom import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class StuderEntityHelperFactory:
-    
-    @staticmethod
-    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry):
-        """
-        Get entity helper for a config entry.
-        The entry is short lived (only during init) and does not contain state data,
-        therefore no need to cache it in hass.data
-        """
-    
-        # Get an instance of the DabPumpsCoordinator
-        coordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
-    
-        # Get an instance of our helper. This is unique to this config_entry
-        return StuderEntityHelper(hass, coordinator)
+@dataclass
+class StuderEntityExtraData(ExtraStoredData):
+    """Object to hold extra stored data."""
+
+    xcom_state: str = None
+    xcom_ram_state :str = None
+    xcom_flash_state :str = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a dict representation of the sensor data."""
+        return {
+            'xcom_state': self.xcom_state,
+            'xcom_ram_state': self.xcom_ram_state,
+            'xcom_flash_state': self.xcom_flash_state,
+        }
+
+    @classmethod
+    def from_dict(cls, restored: dict[str, Any]) -> Self | None:
+        """Initialize a stored sensor state from a dict."""
+        return cls(
+            xcom_state = restored.get('xcom_state', None),
+            xcom_ram_state = restored.get('xcom_ram_state', None),
+            xcom_flash_state = restored.get('xcom_flash_state', None),
+        )
 
 
-class StuderEntityHelper:
-    """My custom helper to provide common functions."""
-    
-    def __init__(self, hass: HomeAssistant, coordinator: StuderCoordinator):
-        self._coordinator = coordinator
-        self._entity_registry = entity_registry.async_get(hass)
-        
-    
-    async def async_setup_entry(self, target_platform, target_class, async_add_entities: AddEntitiesCallback):
-        """
-        Setting up the adding and updating of sensor and binary_sensor entities
-        """    
-        # Get data from the coordinator
-        entity_map = self._coordinator.data
-        
-        if not entity_map:
-            # If data returns False or is empty, log an error and return
-            _LOGGER.warning(f"Failed to fetch entity data")
-            return
-        
-        # Iterate all statusses to create sensor entities
-        ha_entities = []
-        valid_unique_ids: list[str] = []
-        
-        for entity in entity_map.values():
-            
-            platform = self._get_entity_platform(entity)
-            if platform != target_platform:
-                # This status will be handled via another platform
-                continue
-                
-            # Create a Sensor, Binary_Sensor, Number, Select, Switch or other entity for this status
-            ha_entity = None                
-            try:
-                ha_entity = target_class(self._coordinator, entity)
-                ha_entities.append(ha_entity)
-                
-                valid_unique_ids.append(entity.unique_id)
-
-            except Exception as  ex:
-                _LOGGER.warning(f"Could not instantiate {platform} entity class for {entity.object_id}. Details: {ex}")
-
-        # Remember valid unique_ids per platform so we can do an entity cleanup later
-        self._coordinator.set_valid_unique_ids(target_platform, valid_unique_ids)
-
-        # Now add the entities to the entity_registry
-        _LOGGER.info(f"Add {len(ha_entities)} {target_platform} entities for installation '{self._coordinator.config[CONF_PORT]}'")
-        if ha_entities:
-            async_add_entities(ha_entities)
-    
-    
-    def _get_entity_platform(self, entity):
-        """
-        Determine what platform an entry should be added into
-        """
-        
-        # Is it a switch/select/number/time config or control entity? 
-        if entity.obj_type == OBJ_TYPE.PARAMETER:
-            if entity.level==LEVEL.VO:
-                return Platform.SENSOR
-            
-            match entity.format:
-                case FORMAT.BOOL:
-                    return Platform.SWITCH
-                
-                case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
-                    # With exactly 2 possible values that are of ON/OFF type it becomes a switch
-                    if len(entity.options or []) == 2:
-                        if all(k in SWITCH_VALUES_ALL and v in SWITCH_VALUES_ALL for k,v in entity.options.items()):
-                            return Platform.SWITCH
-                    
-                    # With more values or not of ON/OFF type it becomes a Select
-                    return Platform.SELECT
-                
-                case FORMAT.INT32:
-                    if entity.default=="S" or entity.min=="S" or entity.max=="S":
-                        return Platform.BUTTON
-                    elif entity.unit == "Seconds":
-                        return Platform.DATETIME
-                    elif entity.unit == "Minutes":
-                        return Platform.TIME
-                    else:
-                        return Platform.NUMBER
-
-                case FORMAT.FLOAT:
-                    return Platform.NUMBER
-                
-                case _:
-                    _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
-                    return None
-                
-        elif entity.obj_type == OBJ_TYPE.INFO:
-            match entity.format:
-                case FORMAT.BOOL:
-                    return Platform.BINARY_SENSOR
-                
-                case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
-                    # With exactly 2 possible values that are of ON/OFF type it becomes a binary sensor
-                    if len(entity.options or []) == 2:
-                        if all(k in BINARY_SENSOR_VALUES_ALL and v in BINARY_SENSOR_VALUES_ALL for k,v in entity.options.items()):
-                            return Platform.BINARY_SENSOR
-                    
-                    # With more values or not of ON/OFF type it becomes a general sensor
-                    return Platform.SENSOR
-                
-                case FORMAT.FLOAT | FORMAT.INT32:
-                    return Platform.SENSOR
-                
-                case _:
-                    _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
-                    return None
-                
-        else:
-            _LOGGER.warning(f"Unexpected entity obj_type ({entity.obj_type}) in _get_entity_platform")
-            return None
-    
-
-class StuderEntity(Entity):
+class StuderEntity(RestoreEntity):
     """
     Common funcionality for all Studer Entities:
     (StuderSensor, StuderBinarySensor, StuderNumber, StuderSelect, StuderSwitch)
@@ -203,13 +100,71 @@ class StuderEntity(Entity):
         self._attr_unit = self._convert_to_unit()
         self._unit_weight = 1
 
+        self.object_id = entity.object_id
+        self._attr_unique_id = entity.unique_id
+
+        self._attr_has_entity_name = True
+        self._attr_name = entity.name
+        self._name = entity.name
+
+        # Custom extra attributes for the entity
+        self._attributes: dict[str, str | list[str]] = {}
+        self._xcom_state: str = None
+        self._xcom_flash_state :str = None
+        self._xcom_ram_state :str = None
+        
 
     def get_entity(self) -> StuderEntityData:
         return self._entity
     
     def get_platform(self) -> Platform:
         return self._platform
+    
 
+    @property
+    def suggested_object_id(self) -> str | None:
+        """Return input for object id."""
+        return self.object_id
+    
+    
+    @property
+    def unique_id(self) -> str:
+        """Return a unique ID for use in home assistant."""
+        return self._attr_unique_id
+    
+    
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._attr_name
+        
+        
+    @property
+    def extra_state_attributes(self) -> dict[str, str | list[str]]:
+        """
+        Return the state attributes to display in entity attributes.
+        """
+        if self._xcom_state:
+            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
+        if self._xcom_flash_state:
+            self._attributes[ATTR_XCOM_FLASH_STATE] = self._xcom_flash_state
+        if self._xcom_ram_state:
+            self._attributes[ATTR_XCOM_RAM_STATE] = self._xcom_ram_state
+
+        return self._attributes        
+    
+
+    @property
+    def extra_restore_state_data(self) -> StuderEntityExtraData | None:
+        """
+        Return entity specific state data to be restored on next HA run.
+        """
+        return StuderEntityExtraData(
+            xcom_state = self._xcom_state,
+            xcom_ram_state = self._xcom_ram_state,
+            xcom_flash_state = self._xcom_flash_state,
+        )
+    
 
     def _convert_to_unit(self) -> str|None:
         """Convert from Studer units to Home Assistant units"""
@@ -443,4 +398,4 @@ class StuderEntity(Entity):
                     return c
                 
         return None
-
+    

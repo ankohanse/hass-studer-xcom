@@ -39,10 +39,12 @@ from .coordinator import (
     StuderEntityData,
 )
 from .entity_base import (
-    StuderEntityHelperFactory,
-    StuderEntityHelper,
     StuderEntity,
 )
+from .entity_helper import (
+    StuderEntityHelperFactory,
+)
+
 from aioxcom import (
     FORMAT,
 )
@@ -73,43 +75,19 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
         StuderEntity.__init__(self, coordinator, entity, Platform.BUTTON)
         
         # The unique identifier for this sensor within Home Assistant
-        self.object_id = entity.object_id
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
-        self._attr_unique_id = entity.unique_id
 
-        # Standard HA entity attributes
-        self._attr_has_entity_name = True
-        self._attr_name = entity.name
-        self._name = entity.name
+        # update creation-time only attributes
+        _LOGGER.debug(f"Create entity '{self.entity_id}'")
         
         self._attr_entity_category = self.get_entity_category()
         self._attr_device_class = None
 
-        self._attr_device_info = DeviceInfo(
-            identifiers = {(DOMAIN, entity.device_id)},
-        )
+        self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
 
         # Update value
         self._update_value(entity, True)
     
-    
-    @property
-    def suggested_object_id(self) -> str | None:
-        """Return input for object id."""
-        return self.object_id
-    
-    
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID for use in home assistant."""
-        return self._attr_unique_id
-    
-    
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._attr_name
-        
     
     @callback
     def _handle_coordinator_update(self) -> None:

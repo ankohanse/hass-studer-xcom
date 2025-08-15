@@ -69,12 +69,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     # Create devices
     await coordinator.async_create_devices(config_entry)
     
-    # Fetch initial data so we have data when entities subscribe
-    #
-    # If the refresh fails, async_config_entry_first_refresh will
-    # raise ConfigEntryNotReady and setup will try again later
-    #
-    await coordinator.async_config_entry_first_refresh()
+    # No need to fetch initial data; 
+    # we already have what we need from config_entry plus 
+    # the stored data for each entity from the last HA run
     
     # Forward to all platforms (sensor, switch, ...)
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
