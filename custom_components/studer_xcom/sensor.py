@@ -82,8 +82,6 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         # The unique identifier for this sensor within Home Assistant
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
 
-        self._entity_format: FORMAT = entity.format
-
         # update creation-time only attributes
         _LOGGER.debug(f"Create entity '{self.entity_id}'")
         
@@ -103,13 +101,16 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         """
         await super().async_added_to_hass()
 
+        entity_map = self._coordinator.data
+        entity = entity_map.get(self.object_id)
+
         # Get last data from previous HA run                      
         last_state = await self.async_get_last_state()
         if last_state:
             try:
                 _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
 
-                match self._entity_format:
+                match entity.format:
                     case FORMAT.FLOAT:
                         # Convert to float
                         attr_precision = self._attr_suggested_display_precision or 3
@@ -126,6 +127,7 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                         attr_val = str(last_state.state) if last_state.state!=None else None
 
                     case _:
+                        _LOGGER.warning(f"Unexpected entity format ({entity.format}) for a sensor")
                         return
                     
                 self._attr_state = attr_val

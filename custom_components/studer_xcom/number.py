@@ -97,13 +97,27 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         """
         await super().async_added_to_hass()
 
+        entity_map = self._coordinator.data
+        entity = entity_map.get(self.object_id)
+
         # Get last data from previous HA run                      
         last_state = await self.async_get_last_state()
         if last_state:
             try:
                 _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
-            
-                self._attr_native_value = float(last_state.state)
+
+                match entity.format:
+                    case FORMAT.FLOAT:
+                        # Convert to float
+                        self._attr_native_value = float(last_state.state)
+
+                    case FORMAT.INT32:
+                        # Convert to int
+                        self._attr_native_value = int(last_state.state)
+
+                    case _:
+                        _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
+                        pass
             except:
                 pass
 
