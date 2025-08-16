@@ -1,47 +1,18 @@
-import asyncio
 import logging
 import math
-import voluptuous as vol
 
-import homeassistant.helpers.config_validation as cv
-
-from homeassistant import config_entries
-from homeassistant import exceptions
-from homeassistant.components.sensor import SensorEntity, SensorExtraStoredData
-from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.components.sensor import SensorStateClass
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.sensor import ENTITY_ID_FORMAT
-from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.typing import ConfigType
-from homeassistant.helpers.typing import DiscoveryInfoType
-
-from datetime import timedelta
-from datetime import datetime
-
-from collections import defaultdict
-from collections import namedtuple
 
 from .const import (
     DOMAIN,
-    COORDINATOR,
-    MANUFACTURER,
-    CONF_OPTIONS,
-    CONF_NR,
-    CONF_ADDRESS,
-    ATTR_XCOM_STATE,
 )
 from .coordinator import (
     StuderCoordinator,
@@ -91,55 +62,11 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
 
         self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
 
-        # Update value
+        # Create all attributes (but with unknown value).
+        # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
+        # set the value using the restored value from the last HA run.
         self._update_value(entity, True)
         
-
-    async def async_added_to_hass(self) -> None:
-        """
-        Handle when the entity has been added
-        """
-        await super().async_added_to_hass()
-
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
-
-        # Get last data from previous HA run                      
-        last_state = await self.async_get_last_state()
-        if last_state:
-            try:
-                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
-
-                match entity.format:
-                    case FORMAT.FLOAT:
-                        # Convert to float
-                        attr_precision = self._attr_suggested_display_precision or 3
-                        attr_val = round(float(last_state.state), attr_precision) if last_state.state!=None else None
-
-                    case FORMAT.INT32:
-                        # Convert to int
-                        attr_precision = None
-                        attr_val = int(last_state.state) if last_state.state!=None else None
-                            
-                    case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
-                        # Convert to str
-                        attr_precision = None
-                        attr_val = str(last_state.state) if last_state.state!=None else None
-
-                    case _:
-                        _LOGGER.warning(f"Unexpected entity format ({entity.format}) for a sensor")
-                        return
-                    
-                self._attr_state = attr_val
-                self._attr_native_value = attr_val
-
-            except:
-                pass
-
-        last_extra = await self.async_get_last_extra_data()
-        if last_extra:
-            self._xcom_state = last_extra.as_dict().get(ATTR_XCOM_STATE)
-
 
     @callback
     def _handle_coordinator_update(self) -> None:

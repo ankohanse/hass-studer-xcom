@@ -1,39 +1,21 @@
-import asyncio
 import logging
-import math
 
-from homeassistant import config_entries
-from homeassistant import exceptions
 from homeassistant.components.datetime import DateTimeEntity
 from homeassistant.components.datetime import ENTITY_ID_FORMAT
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from datetime import datetime
 from datetime import timezone
 
-from collections import defaultdict
-from collections import namedtuple
-from collections.abc import Mapping
-
-
 from .const import (
     DOMAIN,
-    COORDINATOR,
-    MANUFACTURER,
-    ATTR_XCOM_STATE,
 )
 from .coordinator import (
     StuderCoordinator,
@@ -85,31 +67,10 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
 
         self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
 
-        # Update value
+        # Create all attributes (but with unknown value).
+        # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
+        # set the value using the restored value from the last HA run.
         self._update_value(entity, True)
-    
-    
-    async def async_added_to_hass(self) -> None:
-        """
-        Handle when the entity has been added
-        """
-        await super().async_added_to_hass()
-
-        # Get last data from previous HA run                      
-        last_state = await self.async_get_last_state()
-        if last_state:
-            try:
-                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
-                
-                # last_state.state is a string in format "yyyy-mm-ddThh:mm:ss"
-                self._attr_state = datetime.fromisoformat(last_state.state)
-                self._attr_native_value = datetime.fromisoformat(last_state.state)
-            except:
-                pass
-
-        last_extra = await self.async_get_last_extra_data()
-        if last_extra:
-            self._xcom_state = last_extra.as_dict().get(ATTR_XCOM_STATE)
     
     
     @callback

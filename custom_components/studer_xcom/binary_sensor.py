@@ -1,50 +1,24 @@
-import asyncio
 import logging
-import math
 import voluptuous as vol
 
-from homeassistant import config_entries
-from homeassistant import exceptions
 from homeassistant.components.binary_sensor import PLATFORM_SCHEMA as PARENT_PLATFORM_SCHEMA
 from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.binary_sensor import ENTITY_ID_FORMAT
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.const import CONF_UNIQUE_ID
-from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
-from homeassistant.const import STATE_ON
-from homeassistant.const import STATE_OFF
 from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-
-from datetime import timedelta
-from datetime import datetime
-
-from collections import defaultdict
-from collections import namedtuple
 
 from .const import (
     DOMAIN,
-    COORDINATOR,
-    PREFIX_ID,
-    PREFIX_NAME,
-    MANUFACTURER,
     BINARY_SENSOR_VALUES_ON,
     BINARY_SENSOR_VALUES_OFF,
-    BINARY_SENSOR_VALUES_ALL,
-    ATTR_XCOM_STATE,
 )
 from .coordinator import (
     StuderCoordinator,
@@ -105,38 +79,12 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         
         self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
         
-        # Create all attributes
+        # Create all attributes (but with unknown value).
+        # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
+        # set the value using the restored value from the last HA run.
         self._update_value(entity, True)
     
     
-    async def async_added_to_hass(self) -> None:
-        """
-        Handle when the entity has been added
-        """
-        await super().async_added_to_hass()
-
-        # Get last data from previous HA run                      
-        last_state = await self.async_get_last_state()
-        if last_state:
-            try:
-                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
-
-                if last_state.state == STATE_ON:
-                    self._attr_is_on = True
-
-                elif last_state.state == STATE_OFF:
-                    self._attr_is_on = False
-
-                else: # STATE_UNKNOWN or STATE_UNAVAILABLE
-                    pass
-            except:
-                pass
-
-        last_extra = await self.async_get_last_extra_data()
-        if last_extra:
-            self._xcom_state = last_extra.as_dict().get(ATTR_XCOM_STATE)
-
-
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""

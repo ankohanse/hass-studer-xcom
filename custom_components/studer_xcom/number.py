@@ -1,40 +1,19 @@
-import asyncio
 import logging
 import math
 
-from homeassistant import config_entries
-from homeassistant import exceptions
 from homeassistant.components.number import NumberEntity
 from homeassistant.components.number import NumberMode
 from homeassistant.components.number import ENTITY_ID_FORMAT
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from datetime import timedelta
-from datetime import datetime
-
-from collections import defaultdict
-from collections import namedtuple
-from collections.abc import Mapping
-
 
 from .const import (
     DOMAIN,
-    COORDINATOR,
-    MANUFACTURER,
-    ATTR_XCOM_FLASH_STATE,
-    ATTR_XCOM_RAM_STATE,
 )
 from .coordinator import (
     StuderCoordinator,
@@ -87,45 +66,10 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         
         self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
 
-        # Update value
+        # Create all attributes (but with unknown value).
+        # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
+        # set the value using the restored value from the last HA run.
         self._update_value(entity, True)
-    
-    
-    async def async_added_to_hass(self) -> None:
-        """
-        Handle when the entity has been added
-        """
-        await super().async_added_to_hass()
-
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
-
-        # Get last data from previous HA run                      
-        last_state = await self.async_get_last_state()
-        if last_state:
-            try:
-                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state}")
-
-                match entity.format:
-                    case FORMAT.FLOAT:
-                        # Convert to float
-                        self._attr_native_value = float(last_state.state)
-
-                    case FORMAT.INT32:
-                        # Convert to int
-                        self._attr_native_value = int(last_state.state)
-
-                    case _:
-                        _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
-                        pass
-            except:
-                pass
-
-        last_extra = await self.async_get_last_extra_data()
-        if last_extra:
-            dict_extra = last_extra.as_dict()
-            self._xcom_flash_state = dict_extra.get(ATTR_XCOM_FLASH_STATE)
-            self._xcom_ram_state = dict_extra.get(ATTR_XCOM_RAM_STATE)
     
     
     @callback

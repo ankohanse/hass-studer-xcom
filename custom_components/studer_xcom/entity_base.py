@@ -1,14 +1,12 @@
-from dataclasses import asdict, dataclass
+import copy
+from dataclasses import dataclass
 import logging
-import async_timeout
 
-from datetime import timedelta
 from typing import Any, Self
 
 from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.sensor import SensorStateClass
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
 from homeassistant.const import PERCENTAGE
@@ -20,41 +18,19 @@ from homeassistant.const import UnitOfFrequency
 from homeassistant.const import UnitOfPower
 from homeassistant.const import UnitOfTemperature
 from homeassistant.const import UnitOfTime
-from homeassistant.core import callback
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
-
-import homeassistant.helpers.entity_registry as entity_registry
-
-from homeassistant.const import (
-    CONF_PORT,
-)
 
 from .const import (
     ATTR_XCOM_FLASH_STATE,
     ATTR_XCOM_RAM_STATE,
     ATTR_XCOM_STATE,
-    DOMAIN,
-    PLATFORMS,
-    CONF_OPTIONS,
-    BINARY_SENSOR_VALUES_ON,
-    BINARY_SENSOR_VALUES_OFF,
-    BINARY_SENSOR_VALUES_ALL,
-    SWITCH_VALUES_ON,
-    SWITCH_VALUES_OFF,
-    SWITCH_VALUES_ALL,
 )
 from .coordinator import (
-    StuderCoordinatorFactory,
     StuderCoordinator,
     StuderEntityData
 )
 from aioxcom import (
     FORMAT,
-    LEVEL,
     OBJ_TYPE,
 )
 
@@ -65,25 +41,25 @@ _LOGGER = logging.getLogger(__name__)
 class StuderEntityExtraData(ExtraStoredData):
     """Object to hold extra stored data."""
 
-    xcom_state: str = None
-    xcom_ram_state :str = None
-    xcom_flash_state :str = None
+    xcom_state: str = None              # Used for readonly entities (Sensor, Binary-Sensor)
+    xcom_ram_state :str = None          # Used for readwrite entities (number, select, switch, time, datetime)
+    xcom_flash_state :str = None        # Used for readwrite entities (number, select, switch, time, datetime)
 
     def as_dict(self) -> dict[str, Any]:
         """Return a dict representation of the sensor data."""
         return {
-            'xcom_state': self.xcom_state,
-            'xcom_ram_state': self.xcom_ram_state,
-            'xcom_flash_state': self.xcom_flash_state,
+            ATTR_XCOM_STATE: self.xcom_state,
+            ATTR_XCOM_RAM_STATE: self.xcom_ram_state,
+            ATTR_XCOM_FLASH_STATE: self.xcom_flash_state,
         }
 
     @classmethod
     def from_dict(cls, restored: dict[str, Any]) -> Self | None:
         """Initialize a stored sensor state from a dict."""
         return cls(
-            xcom_state = restored.get('xcom_state', None),
-            xcom_ram_state = restored.get('xcom_ram_state', None),
-            xcom_flash_state = restored.get('xcom_flash_state', None),
+            xcom_state = restored.get(ATTR_XCOM_STATE, None),
+            xcom_ram_state = restored.get(ATTR_XCOM_RAM_STATE, None),
+            xcom_flash_state = restored.get(ATTR_XCOM_FLASH_STATE, None),
         )
 
 
@@ -165,6 +141,46 @@ class StuderEntity(RestoreEntity):
             xcom_flash_state = self._xcom_flash_state,
         )
     
+
+    async def async_added_to_hass(self) -> None:
+        """
+        Handle when the entity has been added.
+        This is called right after the entity was created (with unknown value)
+        and sets the inital value to the value restored from the last HA run.
+        """
+        await super().async_added_to_hass()
+
+        # Get last data from previous HA run                      
+        last_state = await self.async_get_last_state()
+        last_extra = await self.async_get_last_extra_data()
+        
+        if last_state and last_extra:
+            dict_extra = last_extra.as_dict()
+
+            xcom_state = dict_extra.get(ATTR_XCOM_STATE)
+            xcom_ram_state = dict_extra.get(ATTR_XCOM_RAM_STATE)
+            xcom_flash_state = dict_extra.get(ATTR_XCOM_FLASH_STATE)
+
+            # Set entity value from restored data
+            entity = copy.copy(self._entity)
+            entity.value = xcom_state if xcom_state is not None else xcom_flash_state
+            entity.valueModified = xcom_ram_state
+
+            # Trace and update using the entity value
+            attr_value_trace = last_state.state
+            entity_value_trace = entity.valueModified if entity.valueModified is not None else entity.value
+
+            _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {attr_value_trace} ({entity_value_trace})")
+            self._update_value(entity, True)
+    
+
+    def _update_value(self, entity:StuderEntityData, force:bool=False):
+        """
+        Process any changes in value
+        
+        To be extended by derived entities
+        """
+
 
     def _convert_to_unit(self) -> str|None:
         """Convert from Studer units to Home Assistant units"""

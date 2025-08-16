@@ -1,38 +1,17 @@
-import asyncio
 import logging
-import math
-from typing import Mapping
 
-from homeassistant import config_entries
-from homeassistant import exceptions
-from homeassistant.components.button import ButtonDeviceClass
 from homeassistant.components.button import ButtonEntity
 from homeassistant.components.button import ENTITY_ID_FORMAT
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from datetime import timedelta
-from datetime import datetime
-
-from collections import defaultdict
-from collections import namedtuple
-from collections.abc import Mapping
 
 from .const import (
     DOMAIN,
-    COORDINATOR,
-    MANUFACTURER,
 )
 from .coordinator import (
     StuderCoordinator,
@@ -45,9 +24,6 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 
-from aioxcom import (
-    FORMAT,
-)
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,7 +61,9 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
 
         self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )
 
-        # Update value
+        # Create all attributes (but with unknown value).
+        # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
+        # set the value using the restored value from the last HA run.
         self._update_value(entity, True)
     
     
