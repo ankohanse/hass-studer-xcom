@@ -91,7 +91,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             case FORMAT.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
-                attr_precision = 3
+                attr_precision = self.get_precision()
                 attr_digits = 3
                 attr_min = float(self._entity.min) * weight if self._entity.min is not None else None
                 attr_max = float(self._entity.max) * weight if self._entity.max is not None else None
@@ -101,7 +101,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
             case FORMAT.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
-                attr_precision = None
+                attr_precision = self.get_precision()
                 attr_min = int(self._entity.min) * weight if self._entity.min is not None else None
                 attr_max = int(self._entity.max) * weight if self._entity.max is not None else None
                 attr_val = int(value) * weight if value is not None and not math.isnan(value) else None

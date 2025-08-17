@@ -2,6 +2,7 @@ import copy
 from dataclasses import dataclass
 import logging
 
+import math
 from typing import Any, Self
 
 from homeassistant.components.number import NumberDeviceClass
@@ -163,7 +164,7 @@ class StuderEntity(RestoreEntity):
 
             # Trace and update using the entity value
             if self._entity.valueModified is not None:
-                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.valueModified} - modified from {self._entity.value}")
+                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.valueModified} - modified from {self._entity.value})")
             else:
                 _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.value})")
 
@@ -203,9 +204,10 @@ class StuderEntity(RestoreEntity):
             case 'Adc':         return UnitOfElectricCurrent.AMPERE
             case 'Ah':          return 'Ah'
             case 'kAh':         return 'kAh'
-            case 'mW':          return UnitOfPower.MEGA_WATT
+            case 'mW':          return UnitOfPower.MILLIWATT
             case 'W':           return UnitOfPower.WATT
             case 'kW':          return UnitOfPower.KILO_WATT
+            case 'Wh':          return UnitOfEnergy.WATT_HOUR
             case 'kWh':         return UnitOfEnergy.KILO_WATT_HOUR
             case 'MWh':         return UnitOfEnergy.MEGA_WATT_HOUR
             case 'VA':          return UnitOfApparentPower.VOLT_AMPERE
@@ -228,28 +230,68 @@ class StuderEntity(RestoreEntity):
     def get_icon(self) -> str|None:
         """Convert from HA unit to icon"""
         match self._attr_unit:
-            case '°C':      return 'mdi:thermometer'
-            case '°F':      return 'mdi:thermometer'
-            case 'min':     return 'mdi:timer-sand'
-            case 'day':     return 'mdi:timer'
-            case 'h':       return 'mdi:timer'
-            case 'min':     return 'mdi:timer'
-            case 's':       return 'mdi:timer'
-            case '%':       return 'mdi:percent'
-            case 'V':       return 'mdi:lightning-bolt'
-            case 'A':       return 'mdi:lightning-bolt'
-            case 'Ah':      return 'mdi:lightning'
-            case 'kAh':     return 'mdi:lightning'
-            case 'mW':      return 'mdi:power-plug'
-            case 'W':       return 'mdi:power-plug'
-            case 'kW':      return 'mdi:power-plug'
-            case 'Wh':      return 'mdi:lightning'
-            case 'kWh':     return 'mdi:lightning'
-            case 'MWh':     return 'mdi:lightning'
-            case 'VA':      return 'mdi:power-plug'
-            case 'kVA':     return 'mdi:power-plug'
-            case 'Hz':      return None
-            case _:         return None
+            case UnitOfTemperature.CELSIUS:         return 'mdi:thermometer'
+            case UnitOfTemperature.FAHRENHEIT:      return 'mdi:thermometer'
+            case UnitOfTime.DAYS:                   return 'mdi:timer'
+            case UnitOfTime.HOURS:                  return 'mdi:timer'
+            case UnitOfTime.MINUTES:                return 'mdi:timer-sand'
+            case UnitOfTime.SECONDS:                return 'mdi:timer'
+            case '%':                               return 'mdi:percent'
+            case UnitOfElectricPotential.VOLT:      return 'mdi:lightning-bolt'
+            case UnitOfElectricCurrent.AMPERE:      return 'mdi:lightning-bolt'
+            case 'Ah':                              return 'mdi:lightning'
+            case 'kAh':                             return 'mdi:lightning'
+            case UnitOfPower.MILLIWATT:             return 'mdi:power-plug'
+            case UnitOfPower.WATT:                  return 'mdi:power-plug'
+            case UnitOfPower.KILO_WATT:             return 'mdi:power-plug'
+            case UnitOfEnergy.WATT_HOUR:            return 'mdi:lightning'
+            case UnitOfEnergy.KILO_WATT_HOUR:       return 'mdi:lightning'
+            case UnitOfEnergy.MEGA_WATT_HOUR:       return 'mdi:lightning'
+            case UnitOfApparentPower.VOLT_AMPERE:   return 'mdi:power-plug'
+            case UnitOfFrequency.HERTZ:             return None
+            case _:                                 return None
+    
+    
+    def get_precision(self) -> int | None:
+        """Convert from HA unit to number of digits displayed"""
+
+        match self._entity.format:
+            case FORMAT.INT32:
+                # We can calculate the suggested precision
+                weight = self._entity.weight * self._unit_weight
+                if weight >= 1.0:
+                    return 0
+                else:
+                    return math.ceil(-1*math.log10(weight))
+
+            case FORMAT.FLOAT:
+                # continue below with precision derived from unit
+                pass  
+
+            case _:
+                return None
+        
+        match self._attr_unit:
+            case UnitOfTemperature.CELSIUS:         return 1    # TEMPERATURE
+            case UnitOfTemperature.FAHRENHEIT:      return 1    # TEMPERATURE
+            case UnitOfTime.DAYS:                   return 0    # DURATION
+            case UnitOfTime.HOURS:                  return 0    # DURATION
+            case UnitOfTime.MINUTES:                return 0    # DURATION
+            case UnitOfTime.SECONDS:                return 0    # DURATION
+            case '%':                               return 0    # BATTERY
+            case UnitOfElectricPotential.VOLT:      return 1    # VOLTAGE
+            case UnitOfElectricCurrent.AMPERE:      return 1    # CURRENT
+            case 'VA':                              return 3    # APPARENT_POWER
+            case 'kVA':                             return 3    # APPARENT_POWER
+            case UnitOfPower.MILLIWATT:             return 3    # POWER
+            case UnitOfPower.WATT:                  return 3    # POWER
+            case UnitOfPower.KILO_WATT:             return 3    # POWER
+            case UnitOfEnergy.WATT_HOUR:            return 3    # ENERGY
+            case UnitOfEnergy.KILO_WATT_HOUR:       return 3    # ENERGY
+            case UnitOfEnergy.MEGA_WATT_HOUR:       return 3    # ENERGY
+            case UnitOfApparentPower.VOLT_AMPERE:   return 3
+            case UnitOfFrequency.HERTZ:             return 1    # FREQUENCY
+            case _:                                 return 3
     
     
     def get_number_device_class(self) -> NumberDeviceClass|None:
@@ -257,29 +299,27 @@ class StuderEntity(RestoreEntity):
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return NumberDeviceClass.ENUM
             
-        match self._entity.unit:
-            case '°C':      return NumberDeviceClass.TEMPERATURE
-            case '°F':      return NumberDeviceClass.TEMPERATURE
-            case 'min':     return NumberDeviceClass.DURATION
-            case 'day':     return NumberDeviceClass.DURATION
-            case 'h':       return NumberDeviceClass.DURATION
-            case 'min':     return NumberDeviceClass.DURATION
-            case 's':       return NumberDeviceClass.DURATION
-            case '%':       return NumberDeviceClass.BATTERY
-            case 'V':       return NumberDeviceClass.VOLTAGE
-            case 'A':       return NumberDeviceClass.CURRENT
-            case 'VA':      return NumberDeviceClass.APPARENT_POWER
-            case 'kVA':     return NumberDeviceClass.APPARENT_POWER
-            case 'mW':      return NumberDeviceClass.POWER
-            case 'W':       return NumberDeviceClass.POWER
-            case 'kW':      return NumberDeviceClass.POWER
-            case 'Wh':      return NumberDeviceClass.ENERGY
-            case 'kWh':     return NumberDeviceClass.ENERGY
-            case 'MWh':     return NumberDeviceClass.ENERGY
-            case 'Hz':      return NumberDeviceClass.FREQUENCY
-            case 'Ah':      return None
-            case 'kAh':     return None
-            case _:         return None
+        match self._attr_unit:
+            case UnitOfTemperature.CELSIUS:         return NumberDeviceClass.TEMPERATURE
+            case UnitOfTemperature.FAHRENHEIT:      return NumberDeviceClass.TEMPERATURE
+            case UnitOfTime.DAYS:                   return NumberDeviceClass.DURATION
+            case UnitOfTime.HOURS:                  return NumberDeviceClass.DURATION
+            case UnitOfTime.MINUTES:                return NumberDeviceClass.DURATION
+            case UnitOfTime.SECONDS:                return NumberDeviceClass.DURATION
+            case '%':                               return NumberDeviceClass.BATTERY
+            case UnitOfElectricPotential.VOLT:      return NumberDeviceClass.VOLTAGE
+            case UnitOfElectricCurrent.AMPERE:      return NumberDeviceClass.CURRENT
+            case 'VA':                              return NumberDeviceClass.APPARENT_POWER
+            case 'kVA':                             return NumberDeviceClass.APPARENT_POWER
+            case UnitOfPower.MILLIWATT:             return NumberDeviceClass.POWER
+            case UnitOfPower.WATT:                  return NumberDeviceClass.POWER
+            case UnitOfPower.KILO_WATT:             return NumberDeviceClass.POWER
+            case UnitOfEnergy.WATT_HOUR:            return NumberDeviceClass.ENERGY
+            case UnitOfEnergy.KILO_WATT_HOUR:       return NumberDeviceClass.ENERGY
+            case UnitOfEnergy.MEGA_WATT_HOUR:       return NumberDeviceClass.ENERGY
+            case UnitOfApparentPower.VOLT_AMPERE:   return None
+            case UnitOfFrequency.HERTZ:             return NumberDeviceClass.FREQUENCY
+            case _:                                 return None
     
     
     def get_sensor_device_class(self) -> SensorDeviceClass|None:
@@ -287,29 +327,27 @@ class StuderEntity(RestoreEntity):
         if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
             return SensorDeviceClass.ENUM
             
-        match self._entity.unit:
-            case '°C':      return SensorDeviceClass.TEMPERATURE
-            case '°F':      return SensorDeviceClass.TEMPERATURE
-            case 'min':     return SensorDeviceClass.DURATION
-            case 'day':     return SensorDeviceClass.DURATION
-            case 'h':       return SensorDeviceClass.DURATION
-            case 'min':     return SensorDeviceClass.DURATION
-            case 's':       return SensorDeviceClass.DURATION
-            case '%':       return SensorDeviceClass.BATTERY
-            case 'V':       return SensorDeviceClass.VOLTAGE
-            case 'A':       return SensorDeviceClass.CURRENT
-            case 'VA':      return SensorDeviceClass.APPARENT_POWER
-            case 'kVA':     return SensorDeviceClass.APPARENT_POWER
-            case 'mW':      return SensorDeviceClass.POWER
-            case 'W':       return SensorDeviceClass.POWER
-            case 'kW':      return SensorDeviceClass.POWER
-            case 'Wh':      return SensorDeviceClass.ENERGY
-            case 'kWh':     return SensorDeviceClass.ENERGY
-            case 'MWh':     return SensorDeviceClass.ENERGY
-            case 'Hz':      return SensorDeviceClass.FREQUENCY
-            case 'Ah':      return None
-            case 'kAh':     return None
-            case _:         return None
+        match self._attr_unit:
+            case UnitOfTemperature.CELSIUS:         return SensorDeviceClass.TEMPERATURE
+            case UnitOfTemperature.FAHRENHEIT:      return SensorDeviceClass.TEMPERATURE
+            case UnitOfTime.DAYS:                   return SensorDeviceClass.DURATION
+            case UnitOfTime.HOURS:                  return SensorDeviceClass.DURATION
+            case UnitOfTime.MINUTES:                return SensorDeviceClass.DURATION
+            case UnitOfTime.SECONDS:                return SensorDeviceClass.DURATION
+            case '%':                               return SensorDeviceClass.BATTERY
+            case UnitOfElectricPotential.VOLT:      return SensorDeviceClass.VOLTAGE
+            case UnitOfElectricCurrent.AMPERE:      return SensorDeviceClass.CURRENT
+            case 'VA':                              return SensorDeviceClass.APPARENT_POWER
+            case 'kVA':                             return SensorDeviceClass.APPARENT_POWER
+            case UnitOfPower.MILLIWATT:             return SensorDeviceClass.POWER
+            case UnitOfPower.WATT:                  return SensorDeviceClass.POWER
+            case UnitOfPower.KILO_WATT:             return SensorDeviceClass.POWER
+            case UnitOfEnergy.WATT_HOUR:            return SensorDeviceClass.ENERGY
+            case UnitOfEnergy.KILO_WATT_HOUR:       return SensorDeviceClass.ENERGY
+            case UnitOfEnergy.MEGA_WATT_HOUR:       return SensorDeviceClass.ENERGY
+            case UnitOfApparentPower.VOLT_AMPERE:   return None
+            case UnitOfFrequency.HERTZ:             return SensorDeviceClass.FREQUENCY
+            case _:                                 return None
     
     
     def get_sensor_state_class(self) -> SensorStateClass|None:
