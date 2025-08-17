@@ -70,7 +70,7 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(True)
+        self._update_value(force=True)
     
     
     @callback
@@ -79,13 +79,17 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         super()._handle_coordinator_update()
         
         # Update value
-        if self._update_value(False):
+        if self._update_value():
             self.async_write_ha_state()
     
     
     def _update_value(self, force:bool=False):
         """Process any changes in value"""
-        
+
+        # Exception from normal behavior: Datetime entity is only used to display/set the current date+time.
+        # After it is set, the time in _entity.value will automatically update every minute.
+        # The value as set in _entity.valueModified will no longer be relevant and must be ignored.        
+
         match self._entity.format:
             case FORMAT.INT32:
                 # Studer entity value is seconds since 1 Jan 1970 in local timezone. DateTimeEntity expects UTC
@@ -104,9 +108,13 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_flash_state != self._entity.value):
-            self._xcom_flash_state = self._entity.value
-            self._xcom_ram_state = self._entity.valueModified
+        if force or (self._xcom_state != self._entity.value):
+            # Exception from normal behavior: Datetime entity is only used to display/set the current date+time.
+            # After it is set, the time in _entity.value will automatically update every minute.
+            # The value as set in _entity.valueModified will no longer be relevant and must be ignored.
+            # Therefore we assign xcom_state here, not xcom_ram_state and xcom_flash state.
+            self._xcom_state = self._entity.value
+            changed = True
         
         if force or (self._attr_native_value != attr_val):
             self._attr_state = attr_val
@@ -133,14 +141,14 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
                 _LOGGER.error(f"Unexpected format ({self._entity.format}) for a datetime entity")
                 return
         
-        _LOGGER.debug(f"Set {self.entity_id} to {value} ({self._entity_value})")
+        _LOGGER.debug(f"Set {self.entity_id} to {value} ({entity_value})")
 
-        success = await self._coordinator.async_modify_data(self._entity, entity_value)
+        success = await self._coordinator.async_modify_data(self._entity, entity_value, set_modified=False)
         if success:
-            self._attr_native_value = value
-            self._xcom_ram_state = entity_value
+            # Exception from normal behavior: Datetime entity is only used to display/set the current date+time.
+            # After it is set, the time in _entity.value will automatically update every minute.
+            # The value as set in _entity.valueModified will no longer be relevant and must be ignored.
+            self._update_value(force=True)
             self.async_write_ha_state()
-
-            # No need to update self._xcom_ram_state for this entity
 
 

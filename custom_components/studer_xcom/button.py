@@ -64,7 +64,7 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(True)
+        self._update_value(force=True)
     
     
     @callback
@@ -73,7 +73,7 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
         super()._handle_coordinator_update()
         
         # Update value
-        if self._update_value(False):
+        if self._update_value():
             self.async_write_ha_state()
     
     
@@ -94,4 +94,5 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
             
         success = await self._coordinator.async_modify_data(self._entity, data_val)
         if success:
+            self._update_value(force=True)
             self.async_write_ha_state()

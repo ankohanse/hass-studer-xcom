@@ -65,7 +65,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(True)
+        self._update_value(force=True)
     
     
     @callback
@@ -74,7 +74,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         super()._handle_coordinator_update()
         
         # Update value
-        if self._update_value(False):
+        if self._update_value():
             self.async_write_ha_state()
     
     
@@ -93,7 +93,8 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         
         if force or (self._xcom_flash_state != self._entity.value):
             self._xcom_flash_state = self._entity.value
-            self._xcom_ram_state = self._entity.valueModified
+            self._xcom_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
+            changed = True
 
         if force or (self._attr_current_option != attr_val):
             self._attr_current_option = attr_val
@@ -114,8 +115,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
                 
             success = await self._coordinator.async_modify_data(self._entity, data_val)
             if success:
-                self._attr_current_option = option
-                self._xcom_ram_state = option
+                self._update_value(force=True)
                 self.async_write_ha_state()
     
     

@@ -73,7 +73,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(True)
+        self._update_value(force=True)
     
     
     @callback
@@ -82,7 +82,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         super()._handle_coordinator_update()
         
         # Update value
-        if self._update_value(False):
+        if self._update_value():
             self.async_write_ha_state()
     
     
@@ -117,7 +117,8 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
 
         if force or (self._xcom_flash_state != self._entity.value):
             self._xcom_flash_state = self._entity.value
-            self._xcom_ram_state = self._entity.valueModified
+            self._xcom_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
+            changed = True
 
         if force or (self._attr_is_on != attr_is_on):
             self._attr_is_on = attr_is_on
@@ -147,9 +148,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             
             success = await self._coordinator.async_modify_data(self._entity, data_val)
             if success:
-                self._attr_is_on = True
-                self._attr_state = STATE_ON
-                self._xcom_ram_state = data_val
+                self._update_value(force=True)
                 self.async_write_ha_state()
     
     
@@ -170,8 +169,6 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
             
             success = await self._coordinator.async_modify_data(self._entity, data_val)
             if success:
-                self._attr_is_on = False
-                self._attr_state = STATE_OFF
-                self._xcom_ram_state = data_val
+                self._update_value(force=True)
                 self.async_write_ha_state()
     

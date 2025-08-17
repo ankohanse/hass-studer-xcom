@@ -314,7 +314,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._hass = hass
         self._store_key = StuderCoordinator.create_id(self._port)
         self._store = StuderCoordinatorStore(hass, self._store_key)
-        self._cache = {}
+        self._cache = None
         self._cache_last_write = datetime.min
         
         # Diagnostics gathering
@@ -333,9 +333,6 @@ class StuderCoordinator(DataUpdateCoordinator):
         # Set initial data to construct the entities from     
         self.data = self._get_data()
         
-        # Make sure our cache is available
-        await self._async_read_cache()
-
         # Start our Api
         return await self._api.start()
 
@@ -501,6 +498,9 @@ class StuderCoordinator(DataUpdateCoordinator):
         _LOGGER.debug(f"Update data")
 
         try:
+            # Make sure the cache is available before we use it
+            await self._async_read_cache()  
+
             # Request values for each configured param or infos number (datapoints). 
             # Note that a single (broadcasted) request can result in multiple reponses received 
             # (for instance in systems with more than one inverter)
@@ -546,7 +546,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 await asyncio.sleep(1)
 
     
-    async def async_modify_data(self, entity: StuderEntityData, value):
+    async def async_modify_data(self, entity: StuderEntityData, value, set_modified:bool=True):
 
         diag_key = f"UpdateValue {entity.device_code} {entity.level}"
         try:
@@ -557,8 +557,15 @@ class StuderCoordinator(DataUpdateCoordinator):
             if result==True:
                 _LOGGER.info(f"Successfully updated {entity.device_code} {entity.nr} to value {value}")
 
-                self._entity_map[entity.object_id].valueModified = value
-                await self._addModified(entity, value)
+                if set_modified and entity.value != value:
+                    # Changed from its original (flash) value; remember as a modified_param
+                    entity.valueModified = value
+                    await self._setModified(entity, value)
+                else:
+                    # Reverted to its original (flash) value; remove from modified_param
+                    entity.valueModified = None
+                    await self._setModified(entity, None)
+
                 await self._addDiagnostic(diag_key, True)
                 return True
             
@@ -570,6 +577,12 @@ class StuderCoordinator(DataUpdateCoordinator):
 
 
     async def _async_read_cache(self):
+        if self._is_temp:
+            return
+        
+        if self._cache is not None:
+            return  # already read
+        
         if self._store:
             _LOGGER.debug(f"Read persisted cache")
             store = await self._store.async_get_data() or {}
@@ -580,7 +593,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
 
     async def _async_persist_cache(self, force: bool = False):
-        if self._is_temp:
+        if self._is_temp or self._cache is None:
             return
         
         if self._store:
@@ -600,23 +613,33 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         Check if a modified param is available
         """
+        if self._is_temp or self._cache is None:
+            return None
+        
         modified_params = self._cache.get(MODIFIED_PARAMS, {})
 
         return modified_params.get(entity.object_id, None)
 
 
-    async def _addModified(self, entity: StuderEntityData, value: Any):
+    async def _setModified(self, entity: StuderEntityData, value: Any):
         """
         Remember a modified params value. Persist it in cache.
         """
+        if self._is_temp or self._cache is None:
+            return
+        
         modified_params = self._cache.get(MODIFIED_PARAMS, {})
-        modified_params[entity.object_id] = value
+
+        if value is not None:
+            modified_params[entity.object_id] = value
+        else:
+            modified_params.pop(entity.object_id, None)
 
         self._cache[MODIFIED_PARAMS] = modified_params
         self._cache[MODIFIED_PARAMS_TS] = datetime.now()
 
         # Trigger write of cache
-        self._cache_last_write = datetime.min
+        await self._async_persist_cache(force=True)
 
     
     async def _addDiagnostic(self, diag_key: str, success: bool, e: Exception|None = None):

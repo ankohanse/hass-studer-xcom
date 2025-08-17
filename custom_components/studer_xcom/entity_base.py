@@ -41,9 +41,9 @@ _LOGGER = logging.getLogger(__name__)
 class StuderEntityExtraData(ExtraStoredData):
     """Object to hold extra stored data."""
 
-    xcom_state: str = None              # Used for readonly entities (Sensor, Binary-Sensor)
-    xcom_ram_state :str = None          # Used for readwrite entities (number, select, switch, time, datetime)
-    xcom_flash_state :str = None        # Used for readwrite entities (number, select, switch, time, datetime)
+    xcom_state: Any = None              # Used for readonly entities (Sensor, Binary-Sensor)
+    xcom_ram_state: Any = None          # Used for readwrite entities (number, select, switch, time, datetime)
+    xcom_flash_state: Any = None        # Used for readwrite entities (number, select, switch, time, datetime)
 
     def as_dict(self) -> dict[str, Any]:
         """Return a dict representation of the sensor data."""
@@ -70,32 +70,26 @@ class StuderEntity(RestoreEntity):
     """
     
     def __init__(self, coordinator:StuderCoordinator, entity:StuderEntityData, platform:Platform):
-        self._coordinator = coordinator
-        self._entity = entity
-        self._platform = platform
-        self._attr_unit = self._convert_to_unit()
-        self._unit_weight = 1
+        self._coordinator: StuderCoordinator = coordinator
+        self._entity: StuderEntityData = entity
+        self._platform: Platform = platform
+        self._attr_unit: str|None = self._convert_to_unit()
+        self._unit_weight: int = 1
 
-        self.object_id = entity.object_id
+        self.object_id: str = entity.object_id
+
+        # Attributes from Entity base class
         self._attr_unique_id = entity.unique_id
-
         self._attr_has_entity_name = True
         self._attr_name = entity.name
         self._name = entity.name
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state: str = None
-        self._xcom_flash_state :str = None
-        self._xcom_ram_state :str = None
+        self._xcom_state: Any = None
+        self._xcom_flash_state: Any = None
+        self._xcom_ram_state: Any = None
         
-
-    def get_entity(self) -> StuderEntityData:
-        return self._entity
-    
-    def get_platform(self) -> Platform:
-        return self._platform
-    
 
     @property
     def suggested_object_id(self) -> str | None:
@@ -120,11 +114,13 @@ class StuderEntity(RestoreEntity):
         """
         Return the state attributes to display in entity attributes.
         """
-        if self._xcom_state:
+        if self._xcom_state is not None:
             self._attributes[ATTR_XCOM_STATE] = self._xcom_state
-        if self._xcom_flash_state:
+
+        if self._xcom_flash_state is not None:
             self._attributes[ATTR_XCOM_FLASH_STATE] = self._xcom_flash_state
-        if self._xcom_ram_state:
+
+        if self._xcom_ram_state is not None:
             self._attributes[ATTR_XCOM_RAM_STATE] = self._xcom_ram_state
 
         return self._attributes        
@@ -162,19 +158,19 @@ class StuderEntity(RestoreEntity):
             xcom_flash_state = dict_extra.get(ATTR_XCOM_FLASH_STATE)
 
             # Set entity value from restored data
-            entity = copy.copy(self._entity)
-            entity.value = xcom_state if xcom_state is not None else xcom_flash_state
-            entity.valueModified = xcom_ram_state
+            self._entity.value = xcom_state if xcom_state is not None else xcom_flash_state
+            self._entity.valueModified = xcom_ram_state if xcom_ram_state != xcom_flash_state else None
 
             # Trace and update using the entity value
-            attr_value_trace = last_state.state
-            entity_value_trace = entity.valueModified if entity.valueModified is not None else entity.value
+            if self._entity.valueModified is not None:
+                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.valueModified} - modified from {self._entity.value}")
+            else:
+                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.value})")
 
-            _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {attr_value_trace} ({entity_value_trace})")
-            self._update_value(entity, True)
+            self._update_value(True)
     
 
-    def _update_value(self, entity:StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """
         Process any changes in value
         
