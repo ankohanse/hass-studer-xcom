@@ -315,7 +315,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._store_key = StuderCoordinator.create_id(self._port)
         self._store = StuderCoordinatorStore(hass, self._store_key)
         self._cache = None
-        self._cache_last_write = datetime.min
+        self._cache_last_write = datetime.now()
         
         # Diagnostics gathering
         self._diag_requests = {}
