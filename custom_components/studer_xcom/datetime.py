@@ -88,14 +88,15 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
 
         # Exception from normal behavior: Datetime entity is only used to display/set the current date+time.
         # After it is set, the time in _entity.value will automatically update every minute.
-        # The value as set in _entity.valueModified will no longer be relevant and must be ignored.        
+        # The value as set in _entity.valueModified will no longer be relevant and must be ignored. 
+        value = self._entity.value     
 
         match self._entity.format:
             case FORMAT.INT32:
                 # Studer entity value is seconds since 1 Jan 1970 in local timezone. DateTimeEntity expects UTC
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
-                if self._entity.value is not None:
-                    ts_local = int(self._entity.value)
+                if value is not None:
+                    ts_local = int(value)
                     dt_local = dt_util.utc_from_timestamp(ts_local).replace(tzinfo=self._coordinator.time_zone)
                     attr_val = dt_local
                 else:
@@ -143,11 +144,11 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         
         _LOGGER.debug(f"Set {self.entity_id} to {value} ({entity_value})")
 
+        # Exception from normal behavior: Datetime entity is only used to display/set the current date+time.
+        # After it is set, the time in _entity.value will automatically update every minute.
+        # The value as set in _entity.valueModified will no longer be relevant and must be ignored.
         success = await self._coordinator.async_modify_data(self._entity, entity_value, set_modified=False)
         if success:
-            # Exception from normal behavior: Datetime entity is only used to display/set the current date+time.
-            # After it is set, the time in _entity.value will automatically update every minute.
-            # The value as set in _entity.valueModified will no longer be relevant and must be ignored.
             self._update_value(force=True)
             self.async_write_ha_state()
 
