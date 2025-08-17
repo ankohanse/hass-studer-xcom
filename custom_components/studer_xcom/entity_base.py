@@ -25,6 +25,8 @@ from .const import (
     ATTR_XCOM_FLASH_STATE,
     ATTR_XCOM_RAM_STATE,
     ATTR_XCOM_STATE,
+    ATTR_STORED_VALUE,
+    ATTR_STORED_VALUE_MODIFIED,
 )
 from .coordinator import (
     StuderCoordinator,
@@ -42,25 +44,22 @@ _LOGGER = logging.getLogger(__name__)
 class StuderEntityExtraData(ExtraStoredData):
     """Object to hold extra stored data."""
 
-    xcom_state: Any = None              # Used for readonly entities (Sensor, Binary-Sensor)
-    xcom_ram_state: Any = None          # Used for readwrite entities (number, select, switch, time, datetime)
-    xcom_flash_state: Any = None        # Used for readwrite entities (number, select, switch, time, datetime)
+    value: Any = None              # Current value as retrieved via api
+    value_modified: Any = None     # Updated value to persist the change when an entitiy has been modified (number, select, switch, time)
 
     def as_dict(self) -> dict[str, Any]:
         """Return a dict representation of the sensor data."""
         return {
-            ATTR_XCOM_STATE: self.xcom_state,
-            ATTR_XCOM_RAM_STATE: self.xcom_ram_state,
-            ATTR_XCOM_FLASH_STATE: self.xcom_flash_state,
+            ATTR_STORED_VALUE: self.value,
+            ATTR_STORED_VALUE_MODIFIED: self.value_modified,
         }
 
     @classmethod
     def from_dict(cls, restored: dict[str, Any]) -> Self | None:
         """Initialize a stored sensor state from a dict."""
         return cls(
-            xcom_state = restored.get(ATTR_XCOM_STATE, None),
-            xcom_ram_state = restored.get(ATTR_XCOM_RAM_STATE, None),
-            xcom_flash_state = restored.get(ATTR_XCOM_FLASH_STATE, None),
+            value = restored.get(ATTR_STORED_VALUE),
+            value_modified = restored.get(ATTR_STORED_VALUE_MODIFIED),
         )
 
 
@@ -133,9 +132,8 @@ class StuderEntity(RestoreEntity):
         Return entity specific state data to be restored on next HA run.
         """
         return StuderEntityExtraData(
-            xcom_state = self._xcom_state,
-            xcom_ram_state = self._xcom_ram_state,
-            xcom_flash_state = self._xcom_flash_state,
+            value = self._entity.value,
+            value_modified = self._entity.valueModified if self._entity.valueModified != self._entity.value else None,
         )
     
 
@@ -152,15 +150,11 @@ class StuderEntity(RestoreEntity):
         last_extra = await self.async_get_last_extra_data()
         
         if last_state and last_extra:
+            # Set entity value from restored data
             dict_extra = last_extra.as_dict()
 
-            xcom_state = dict_extra.get(ATTR_XCOM_STATE)
-            xcom_ram_state = dict_extra.get(ATTR_XCOM_RAM_STATE)
-            xcom_flash_state = dict_extra.get(ATTR_XCOM_FLASH_STATE)
-
-            # Set entity value from restored data
-            self._entity.value = xcom_state if xcom_state is not None else xcom_flash_state
-            self._entity.valueModified = xcom_ram_state if xcom_ram_state != xcom_flash_state else None
+            self._entity.value = dict_extra.get(ATTR_STORED_VALUE)
+            self._entity.valueModified = dict_extra.get(ATTR_STORED_VALUE_MODIFIED)
 
             # Trace and update using the entity value
             if self._entity.valueModified is not None:
@@ -168,7 +162,7 @@ class StuderEntity(RestoreEntity):
             else:
                 _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.value})")
 
-            self._update_value(True)
+            self._update_value(force=True)
     
 
     def _update_value(self, force:bool=False):

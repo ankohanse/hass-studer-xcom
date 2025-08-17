@@ -74,10 +74,14 @@ MANUFACTURER = "Studer"
 PREFIX_ID = "studer"
 PREFIX_NAME = "Studer"
 
-# Custom extra attributes to entities
+# Custom extra attributes to entities, displayed in the UI
 ATTR_XCOM_STATE = "xcom_state"
 ATTR_XCOM_FLASH_STATE = "xcom_flash_state"
 ATTR_XCOM_RAM_STATE = "xcom_ram_state"
+
+# Extra attributes that are restored from the previous HA run
+ATTR_STORED_VALUE = "value"
+ATTR_STORED_VALUE_MODIFIED = "value_modified"
 
 # Used to recognize a binary_sensor from a regular sensor
 BINARY_SENSOR_VALUES_ON = [1, True, '1', 'on', 'On']
