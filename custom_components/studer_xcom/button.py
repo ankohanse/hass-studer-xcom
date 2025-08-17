@@ -64,7 +64,7 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
     
     
     @callback
@@ -72,15 +72,12 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity:StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
        
         changed = False
@@ -91,12 +88,10 @@ class StuderButton(CoordinatorEntity, ButtonEntity, StuderEntity):
 
     async def async_press(self) -> None:
         """Press the button."""
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
 
         data_val = 1
         _LOGGER.info(f"Set {self.entity_id} to Signal ({data_val})")
             
-        success = await self._coordinator.async_modify_data(entity, data_val)
+        success = await self._coordinator.async_modify_data(self._entity, data_val)
         if success:
             self.async_write_ha_state()

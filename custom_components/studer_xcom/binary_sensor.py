@@ -82,7 +82,7 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
     
     
     @callback
@@ -90,34 +90,31 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity:StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
 
-        match entity.format:
+        match self._entity.format:
             case FORMAT.BOOL:
-                if entity.value == 1:
+                if self._entity.value == 1:
                     is_on = True
-                elif entity.value == 0:
+                elif self._entity.value == 0:
                     is_on = False
                 else:
                     is_on = None
 
             case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
                 # sanity check
-                if len(entity.options or []) != 2:
-                    _LOGGER.error(f"Unexpected entity options ({entity.options}) for a binary sensor")
+                if len(self._entity.options or []) != 2:
+                    _LOGGER.error(f"Unexpected entity options ({self._entity.options}) for a binary sensor")
                     return
                 
                 # Lookup the option string for the value and otherwise return the value itself
-                val = entity.options.get(str(entity.value), entity.value)
+                val = self._entity.options.get(str(self._entity.value), self._entity.value)
                 if val in BINARY_SENSOR_VALUES_ON:
                     is_on = True
                 elif val in BINARY_SENSOR_VALUES_OFF:
@@ -126,18 +123,16 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
                     is_on = None
                 
             case _:
-                _LOGGER.warning(f"Unexpected entity format ({entity.format}) for a binary sensor")
+                _LOGGER.warning(f"Unexpected entity format ({self._entity.format}) for a binary sensor")
                 return
             
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_state != entity.value):
-            
-            self._xcom_state = entity.value
+        if force or (self._xcom_state != self._entity.value):
+            self._xcom_state = self._entity.value
         
         if force or (self._attr_is_on != is_on):
-            
             self._attr_is_on = is_on
             changed = True
             

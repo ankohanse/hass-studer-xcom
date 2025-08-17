@@ -69,7 +69,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
     
     
     @callback
@@ -77,41 +77,38 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity: StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
         
-        value = entity.valueModified if entity.valueModified is not None else entity.value
+        value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        match entity.format:
+        match self._entity.format:
             case FORMAT.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = 3
                 attr_digits = 3
-                attr_min = float(entity.min) * weight if entity.min is not None else None
-                attr_max = float(entity.max) * weight if entity.max is not None else None
+                attr_min = float(self._entity.min) * weight if self._entity.min is not None else None
+                attr_max = float(self._entity.max) * weight if self._entity.max is not None else None
                 attr_val = round(float(value) * weight, attr_digits) if value is not None and not math.isnan(value) else None
-                attr_step = entity.inc
+                attr_step = self._entity.inc
 
             case FORMAT.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = None
-                attr_min = int(entity.min) * weight if entity.min is not None else None
-                attr_max = int(entity.max) * weight if entity.max is not None else None
+                attr_min = int(self._entity.min) * weight if self._entity.min is not None else None
+                attr_max = int(self._entity.max) * weight if self._entity.max is not None else None
                 attr_val = int(value) * weight if value is not None and not math.isnan(value) else None
                 attr_step = self.get_number_step()
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a number entity")
                 return
         
         # update creation-time only attributes
@@ -125,9 +122,9 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         # update value if it has changed
         changed = False
         
-        if force or (self._xcom_flash_state != entity.value):
-            self._xcom_flash_state = entity.value
-            self._xcom_ram_state = entity.valueModified
+        if force or (self._xcom_flash_state != self._entity.value):
+            self._xcom_flash_state = self._entity.value
+            self._xcom_ram_state = self._entity.valueModified
 
         if force or (self._attr_native_value != attr_val):
             self._attr_state = attr_val
@@ -144,10 +141,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Change the selected option"""
         
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
-
-        match entity.format:
+        match self._entity.format:
             case FORMAT.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
@@ -159,12 +153,12 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 entity_value = int(value / weight)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a number entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a number entity")
                 return
         
         _LOGGER.debug(f"Set {self.entity_id} to {value} {self._attr_unit or ""} ({entity_value})")
 
-        success = await self._coordinator.async_modify_data(entity, entity_value)
+        success = await self._coordinator.async_modify_data(self._entity, entity_value)
         if success:
             self._attr_native_value = value
             self._xcom_ram_state = entity_value

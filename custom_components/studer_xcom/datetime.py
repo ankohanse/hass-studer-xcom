@@ -70,7 +70,7 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
     
     
     @callback
@@ -78,37 +78,35 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity: StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
         
-        match entity.format:
+        match self._entity.format:
             case FORMAT.INT32:
                 # Studer entity value is seconds since 1 Jan 1970 in local timezone. DateTimeEntity expects UTC
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
-                if entity.value is not None:
-                    ts_local = int(entity.value)
+                if self._entity.value is not None:
+                    ts_local = int(self._entity.value)
                     dt_local = dt_util.utc_from_timestamp(ts_local).replace(tzinfo=self._coordinator.time_zone)
                     attr_val = dt_local
                 else:
                     attr_val = None
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a datetime entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a datetime entity")
                 return
         
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_state != entity.value):
-            self._xcom_state = entity.value
+        if force or (self._xcom_flash_state != self._entity.value):
+            self._xcom_flash_state = self._entity.value
+            self._xcom_ram_state = self._entity.valueModified
         
         if force or (self._attr_native_value != attr_val):
             self._attr_state = attr_val
@@ -123,10 +121,7 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
     async def async_set_value(self, value: datetime) -> None:
         """Change the date/time"""
         
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
-
-        match entity.format:
+        match self._entity.format:
             case FORMAT.INT32:
                 # DateTimeEntity value is UTC, Studer expects seconds since 1 Jan 1970 in local timezone
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
@@ -135,14 +130,15 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
                 entity_value = int(ts_local)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a datetime entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a datetime entity")
                 return
         
-        _LOGGER.debug(f"Set {self.entity_id} to {value} ({entity_value})")
+        _LOGGER.debug(f"Set {self.entity_id} to {value} ({self._entity_value})")
 
-        success = await self._coordinator.async_modify_data(entity, entity_value)
+        success = await self._coordinator.async_modify_data(self._entity, entity_value)
         if success:
             self._attr_native_value = value
+            self._xcom_ram_state = entity_value
             self.async_write_ha_state()
 
             # No need to update self._xcom_ram_state for this entity

@@ -65,7 +65,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
     
     
     @callback
@@ -73,30 +73,27 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity:StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
        
-        if entity.format != FORMAT.SHORT_ENUM and entity.format != FORMAT.LONG_ENUM:
-            _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
+        if self._entity.format != FORMAT.SHORT_ENUM and self._entity.format != FORMAT.LONG_ENUM:
+            _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
 
-        value = entity.valueModified if entity.valueModified is not None else entity.value
+        value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        attr_val = entity.options.get(str(value), value) if value!=None else None
+        attr_val = self._entity.options.get(str(value), value) if value!=None else None
 
         # update value if it has changed
         changed = False
         
-        if force or (self._xcom_flash_state != entity.value):
-            self._xcom_flash_state = entity.value
-            self._xcom_ram_state = entity.valueModified
+        if force or (self._xcom_flash_state != self._entity.value):
+            self._xcom_flash_state = self._entity.value
+            self._xcom_ram_state = self._entity.valueModified
 
         if force or (self._attr_current_option != attr_val):
             self._attr_current_option = attr_val
@@ -110,14 +107,12 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
     
     async def async_select_option(self, option: str) -> None:
         """Change the selected option"""
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
 
-        data_val = next((k for k,v in entity.options.items() if v == option), None)
+        data_val = next((k for k,v in self._entity.options.items() if v == option), None)
         if data_val is not None:
             _LOGGER.info(f"Set {self.entity_id} to {option} ({data_val})")
                 
-            success = await self._coordinator.async_modify_data(entity, data_val)
+            success = await self._coordinator.async_modify_data(self._entity, data_val)
             if success:
                 self._attr_current_option = option
                 self._xcom_ram_state = option

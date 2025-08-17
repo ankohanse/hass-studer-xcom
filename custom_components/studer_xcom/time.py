@@ -68,7 +68,7 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
     
     
     @callback
@@ -76,20 +76,17 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity:StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
         
-        value = entity.valueModified if entity.valueModified is not None else entity.value
+        value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        match entity.format:
+        match self._entity.format:
             case FORMAT.INT32:
                 # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
                 # TimeEntity expects time object and can only be between 00:00 and 23:59
@@ -102,15 +99,15 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
                     attr_val = time(int(value // 60), int(value % 60)).replace(tzinfo=self._coordinator.time_zone)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a time entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a time entity")
                 return
         
         # update value if it has changed
         changed = False
         
-        if force or (self._xcom_flash_state != entity.value):
-            self._xcom_flash_state = entity.value
-            self._xcom_ram_state = entity.valueModified
+        if force or (self._xcom_flash_state != self._entity.value):
+            self._xcom_flash_state = self._entity.value
+            self._xcom_ram_state = self._entity.valueModified
         
         if force or (self._attr_native_value != attr_val):
             self._attr_state = attr_val
@@ -125,10 +122,7 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
     async def async_set_value(self, value: time) -> None:
         """Change the date/time"""
         
-        entity_map: dict[str, StuderEntityData] = self._coordinator.data
-        entity: StuderEntityData = entity_map.get(self.object_id)
-
-        match entity.format:
+        match self._entity.format:
             case FORMAT.INT32:
                 # TimeEntity is a time object and can only be between 00:00 and 23:59
                 # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
@@ -143,12 +137,12 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
                     trace_value = "24:00"
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a time entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a time entity")
                 return
         
         _LOGGER.debug(f"Set {self.entity_id} to {trace_value} ({entity_value})")
 
-        success = await self._coordinator.async_modify_data(entity, entity_value)
+        success = await self._coordinator.async_modify_data(self._entity, entity_value)
         if success:
             self._attr_native_value = value
             self._xcom_ram_state = entity_value

@@ -65,7 +65,7 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
         
 
     @callback
@@ -73,48 +73,45 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id, None)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity:StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
         
         # Transform values according to the metadata params for this status/sensor
-        match entity.format:
+        match self._entity.format:
             case FORMAT.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = 3
-                attr_val = round(float(entity.value) * weight, attr_precision) if entity.value!=None and not math.isnan(entity.value) else None
+                attr_val = round(float(self._entity.value) * weight, attr_precision) if self._entity.value!=None and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
 
             case FORMAT.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = None
-                attr_val = int(entity.value) * weight if entity.value!=None and not math.isnan(entity.value) else None
+                attr_val = int(self._entity.value) * weight if self._entity.value!=None and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
                     
             case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
                 # Lookup the dict string for the value and otherwise return the value itself
                 attr_precision = None
-                attr_val = entity.options.get(str(entity.value), entity.value) if entity.value!=None and not math.isnan(entity.value) else None
+                attr_val = self._entity.options.get(str(self._entity.value), self._entity.value) if self._entity.value!=None and not math.isnan(self._entity.value) else None
                 attr_unit = None
 
             case _:
-                _LOGGER.warning(f"Unexpected entity format ({entity.format}) for a sensor")
+                _LOGGER.warning(f"Unexpected entity format ({self._entity.format}) for a sensor")
                 return
         
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_state != entity.value):
-            self._xcom_state = entity.value
+        if force or (self._xcom_state != self._entity.value):
+            self._xcom_state = self._entity.value
         
         if force or (self._attr_native_value != attr_val):
             if not force:

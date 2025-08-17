@@ -73,7 +73,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         # Create all attributes (but with unknown value).
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
-        self._update_value(entity, True)
+        self._update_value(True)
     
     
     @callback
@@ -81,28 +81,25 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         """Handle updated data from the coordinator."""
         super()._handle_coordinator_update()
         
-        # find the correct device and status corresponding to this sensor
-        entity: StuderEntityData|None = self._coordinator.data.get(self.object_id)
-        if entity:
-            # Update value
-            if self._update_value(entity, False):
-                self.async_write_ha_state()
+        # Update value
+        if self._update_value(False):
+            self.async_write_ha_state()
     
     
-    def _update_value(self, entity:StuderEntityData, force:bool=False):
+    def _update_value(self, force:bool=False):
         """Process any changes in value"""
         
-        value = entity.valueModified if entity.valueModified is not None else entity.value
+        value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        match entity.format:
+        match self._entity.format:
             case FORMAT.BOOL:
                 attr_val = value
                 
             case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
-                attr_val = entity.options.values.get(value, value)
+                attr_val = self._entity.options.values.get(value, value)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
 
         if attr_val in SWITCH_VALUES_ON:
             attr_is_on = True
@@ -118,9 +115,9 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_flash_state != entity.value):
-            self._xcom_flash_state = entity.value
-            self._xcom_ram_state = entity.valueModified
+        if force or (self._xcom_flash_state != self._entity.value):
+            self._xcom_flash_state = self._entity.value
+            self._xcom_ram_state = self._entity.valueModified
 
         if force or (self._attr_is_on != attr_is_on):
             self._attr_is_on = attr_is_on
@@ -135,22 +132,20 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
     
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the entity on."""
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
 
-        match entity.format:
+        match self._entity.format:
             case FORMAT.BOOL:
                 data_val = 1
             case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
-                data_val = next((k for k,v in entity.options.items() if k in SWITCH_VALUES_ON or v in SWITCH_VALUES_ON), None)
+                data_val = next((k for k,v in self._entity.options.items() if k in SWITCH_VALUES_ON or v in SWITCH_VALUES_ON), None)
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
                 data_val = None
                 
         if data_val is not None:
             _LOGGER.info(f"Set {self.entity_id} to ON ({data_val})")
             
-            success = await self._coordinator.async_modify_data(entity, data_val)
+            success = await self._coordinator.async_modify_data(self._entity, data_val)
             if success:
                 self._attr_is_on = True
                 self._attr_state = STATE_ON
@@ -160,22 +155,20 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
     
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the entity off."""
-        entity_map = self._coordinator.data
-        entity = entity_map.get(self.object_id)
 
-        match entity.format:
+        match self._entity.format:
             case FORMAT.BOOL:
                 data_val = 0
             case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
-                data_val = next((k for k,v in entity.options.items() if k in SWITCH_VALUES_OFF or v in SWITCH_VALUES_OFF), None)
+                data_val = next((k for k,v in self._entity.options.items() if k in SWITCH_VALUES_OFF or v in SWITCH_VALUES_OFF), None)
             case _:
-                _LOGGER.error(f"Unexpected format ({entity.format}) for a select entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
                 data_val = None
 
         if data_val is not None:
             _LOGGER.info(f"Set {self.entity_id} to OFF ({data_val})")
             
-            success = await self._coordinator.async_modify_data(entity, data_val)
+            success = await self._coordinator.async_modify_data(self._entity, data_val)
             if success:
                 self._attr_is_on = False
                 self._attr_state = STATE_OFF
