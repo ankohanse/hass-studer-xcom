@@ -31,7 +31,7 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 from aioxcom import (
-    FORMAT,
+    XcomFormat,
 )
 
 
@@ -92,10 +92,10 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
         match self._entity.format:
-            case FORMAT.BOOL:
+            case XcomFormat.BOOL:
                 attr_val = value
                 
-            case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                 attr_val = self._entity.options.values.get(value, value)
 
             case _:
@@ -135,9 +135,9 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         """Turn the entity on."""
 
         match self._entity.format:
-            case FORMAT.BOOL:
+            case XcomFormat.BOOL:
                 data_val = 1
-            case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                 data_val = next((k for k,v in self._entity.options.items() if k in SWITCH_VALUES_ON or v in SWITCH_VALUES_ON), None)
             case _:
                 _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
@@ -156,9 +156,9 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         """Turn the entity off."""
 
         match self._entity.format:
-            case FORMAT.BOOL:
+            case XcomFormat.BOOL:
                 data_val = 0
-            case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                 data_val = next((k for k,v in self._entity.options.items() if k in SWITCH_VALUES_OFF or v in SWITCH_VALUES_OFF), None)
             case _:
                 _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")

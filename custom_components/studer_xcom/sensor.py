@@ -25,7 +25,7 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 from aioxcom import (
-    FORMAT,
+    XcomFormat,
 )
 
 
@@ -83,7 +83,7 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         
         # Transform values according to the metadata params for this status/sensor
         match self._entity.format:
-            case FORMAT.FLOAT:
+            case XcomFormat.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
@@ -91,14 +91,14 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 attr_val = round(float(self._entity.value) * weight, attr_digits) if self._entity.value!=None and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
 
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
                 attr_val = int(self._entity.value) * weight if self._entity.value!=None and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
                     
-            case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                 # Lookup the dict string for the value and otherwise return the value itself
                 weight = None
                 attr_precision = None

@@ -33,8 +33,8 @@ from .coordinator import (
     StuderEntityData
 )
 from aioxcom import (
-    FORMAT,
-    OBJ_TYPE,
+    XcomFormat,
+    XcomCategory,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -250,7 +250,7 @@ class StuderEntity(RestoreEntity):
         """Convert from HA unit to number of digits displayed"""
 
         match self._entity.format:
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # We can calculate the suggested precision
                 weight = self._entity.weight * self._unit_weight
                 if weight >= 1.0:
@@ -258,7 +258,7 @@ class StuderEntity(RestoreEntity):
                 else:
                     return math.ceil(-1*math.log10(weight))
 
-            case FORMAT.FLOAT:
+            case XcomFormat.FLOAT:
                 # continue below with precision derived from unit
                 pass  
 
@@ -290,7 +290,7 @@ class StuderEntity(RestoreEntity):
     
     def get_number_device_class(self) -> NumberDeviceClass|None:
         """Convert from HA unit to NumberDeviceClass"""
-        if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
+        if self._entity.format == XcomFormat.SHORT_ENUM or self._entity.format == XcomFormat.LONG_ENUM:
             return NumberDeviceClass.ENUM
             
         match self._attr_unit:
@@ -318,7 +318,7 @@ class StuderEntity(RestoreEntity):
     
     def get_sensor_device_class(self) -> SensorDeviceClass|None:
         """Convert from HA unit to SensorDeviceClass"""
-        if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
+        if self._entity.format == XcomFormat.SHORT_ENUM or self._entity.format == XcomFormat.LONG_ENUM:
             return SensorDeviceClass.ENUM
             
         match self._attr_unit:
@@ -346,11 +346,11 @@ class StuderEntity(RestoreEntity):
     
     def get_sensor_state_class(self) -> SensorStateClass|None:
         # Return StateClass=None for Enum or Label
-        if self._entity.format == FORMAT.SHORT_ENUM or self._entity.format == FORMAT.LONG_ENUM:
+        if self._entity.format == XcomFormat.SHORT_ENUM or self._entity.format == XcomFormat.LONG_ENUM:
             return None
         
         # Return StateClass=None for params that are a setting, unlikely to change often
-        if self._entity.obj_type == OBJ_TYPE.PARAMETER:
+        if self._entity.category == XcomCategory.PARAMETER:
             return None
         
         # Return StateClass=None for some specific entities
@@ -413,7 +413,7 @@ class StuderEntity(RestoreEntity):
         
         # Return None for params that are a setting
         # Leads to the entities being added under 'Controls'
-        if self._entity.obj_type == OBJ_TYPE.PARAMETER:
+        if self._entity.category == XcomCategory.PARAMETER:
             return None
         
         # Return None for all others

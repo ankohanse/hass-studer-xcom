@@ -26,7 +26,7 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 from aioxcom import (
-    FORMAT
+    XcomFormat,
 )
 
 
@@ -88,7 +88,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
         match self._entity.format:
-            case FORMAT.FLOAT:
+            case XcomFormat.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
@@ -98,7 +98,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 attr_val = round(float(value) * weight, attr_digits) if value is not None and not math.isnan(value) else None
                 attr_step = self._entity.inc
 
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
@@ -143,12 +143,12 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         """Change the selected option"""
         
         match self._entity.format:
-            case FORMAT.FLOAT:
+            case XcomFormat.FLOAT:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 entity_value = float(value / weight)
 
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 entity_value = int(value / weight)

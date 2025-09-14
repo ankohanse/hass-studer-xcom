@@ -52,10 +52,10 @@ from .coordinator import (
     StuderDeviceConfig,
 )
 from aioxcom import (
-    LEVEL,
-    OBJ_TYPE,
-    FORMAT,
-    VOLTAGE,
+    XcomLevel,
+    XcomFormat,
+    XcomVoltage,
+    XcomCategory,
     XcomDiscover,
     XcomDataset,
     XcomDatapoint,
@@ -171,7 +171,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         self._devices_old = [StuderDeviceConfig.from_dict(device) for device in devices_data]
 
         level_str = options.get(CONF_USER_LEVEL, None) or configs.get(CONF_USER_LEVEL, str(DEFAULT_USER_LEVEL))
-        self._user_level = LEVEL.from_str(level_str, None)
+        self._user_level = XcomLevel.from_str(level_str, None)
 
         self._polling_interval = options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)      
 
@@ -209,7 +209,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             # Get form data
             _LOGGER.debug(f"Step client - handle input {user_input}")
             voltage_key = user_input.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
-            self._voltage = next((v for v in VOLTAGE if translation_key(v) == voltage_key), DEFAULT_VOLTAGE)
+            self._voltage = next((v for v in XcomVoltage if translation_key(v) == voltage_key), DEFAULT_VOLTAGE)
             self._port = user_input.get(CONF_PORT, DEFAULT_PORT)
 
             # Check if port is not already in user for another Hub
@@ -234,7 +234,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             step_id = "client", 
             data_schema = vol.Schema({
                 vol.Required(CONF_VOLTAGE, description={"suggested_value": translation_key(self._voltage)}): selector({                    "select": { 
-                        "options": [translation_key(v) for v in VOLTAGE],
+                        "options": [translation_key(v) for v in XcomVoltage],
                         "mode": "dropdown",
                         "translation_key": CONF_VOLTAGE
                     }
@@ -427,6 +427,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 self._client_info = StuderClientConfig(
                     info.ip,
                     info.mac,
+                    info.guid,
                 )
             else:
                 _LOGGER.info(f"Xcom client info not detected.")
@@ -639,7 +640,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             device = next( (device for device in self._devices if translation_key(device.code) == device_key), None)
 
             level_key = user_input.get(CONF_USER_LEVEL, "")
-            level = next( (level for level in LEVEL if translation_key(level) == level_key), DEFAULT_USER_LEVEL)
+            level = next( (level for level in XcomLevel if translation_key(level) == level_key), DEFAULT_USER_LEVEL)
 
             # Additional validation here if needed
             self._device_code = device.code if device is not None else ""
@@ -671,7 +672,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             }),
             vol.Required(CONF_USER_LEVEL, description={"suggested_value": translation_key(self._user_level)}): selector({
                 "select": { 
-                    "options": [ translation_key(level) for level in LEVEL if level <= LEVEL.EXPERT ],
+                    "options": [ translation_key(level) for level in XcomLevel if level <= XcomLevel.EXPERT ],
                     "mode": "dropdown",
                     "translation_key": CONF_USER_LEVEL
                 }
@@ -709,7 +710,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
                 case _:
                     datapoint = self._dataset.getByNr(int(key))
-                    if datapoint.format == FORMAT.MENU:
+                    if datapoint.format == XcomFormat.MENU:
                         self._menu_history.append( (self._menu_parent_name, self._menu_parent_nr) )
                         self._menu_parent_name = datapoint.name
                         self._menu_parent_nr = datapoint.nr
@@ -738,7 +739,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             if item.level <= self._menu_level:
                 nr = f"{item.level} {item.nr} - " if item.nr >= 1000 else ""
                 name = item.name
-                menu = " ►" if item.format == FORMAT.MENU else ""
+                menu = " ►" if item.format == XcomFormat.MENU else ""
                 self._menu_options[str(item.nr)] = f"{nr}{name}{menu}"
 
         _LOGGER.debug(f"Step add_menu_items - build schema")
@@ -911,10 +912,10 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     except XcomDatapointUnknownException:
                         raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
 
-                    if param.obj_type not in [OBJ_TYPE.INFO, OBJ_TYPE.PARAMETER]:
+                    if param.obj_type not in [XcomCategory.INFO, XcomCategory.PARAMETER]:
                         raise vol.Invalid(f"Number {nr} is not a valid info or param")
 
-                    if param.format in [FORMAT.MENU, FORMAT.ERROR, FORMAT.INVALID]:
+                    if param.format in [XcomFormat.MENU, XcomFormat.ERROR, XcomFormat.INVALID]:
                         raise vol.Invalid(f"Number {nr} is not a valid info or param")
                 
                 if check_level:

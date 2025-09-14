@@ -32,7 +32,7 @@ from .entity_helper import (
 )
 
 from aioxcom import (
-    FORMAT,
+    XcomFormat,
 )
 
 
@@ -99,7 +99,7 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         """Process any changes in value"""
 
         match self._entity.format:
-            case FORMAT.BOOL:
+            case XcomFormat.BOOL:
                 if self._entity.value == 1:
                     is_on = True
                 elif self._entity.value == 0:
@@ -107,7 +107,7 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
                 else:
                     is_on = None
 
-            case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                 # sanity check
                 if len(self._entity.options or []) != 2:
                     _LOGGER.error(f"Unexpected entity options ({self._entity.options}) for a binary sensor")

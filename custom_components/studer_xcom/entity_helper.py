@@ -27,9 +27,9 @@ from .coordinator import (
     StuderEntityData,
 )
 from aioxcom import (
-    FORMAT,
-    LEVEL,
-    OBJ_TYPE,
+    XcomFormat,
+    XcomLevel,
+    XcomCategory,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -105,15 +105,15 @@ class StuderEntityHelper:
         """
         
         # Is it a switch/select/number/time config or control entity? 
-        if entity.obj_type == OBJ_TYPE.PARAMETER:
-            if entity.level==LEVEL.VO:
+        if entity.category == XcomCategory.PARAMETER:
+            if entity.level==XcomLevel.VO:
                 return Platform.SENSOR
             
             match entity.format:
-                case FORMAT.BOOL:
+                case XcomFormat.BOOL:
                     return Platform.SWITCH
                 
-                case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+                case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                     # With exactly 2 possible values that are of ON/OFF type it becomes a switch
                     if len(entity.options or []) == 2:
                         if all(k in SWITCH_VALUES_ALL and v in SWITCH_VALUES_ALL for k,v in entity.options.items()):
@@ -122,7 +122,7 @@ class StuderEntityHelper:
                     # With more values or not of ON/OFF type it becomes a Select
                     return Platform.SELECT
                 
-                case FORMAT.INT32:
+                case XcomFormat.INT32:
                     if entity.default=="S" or entity.min=="S" or entity.max=="S":
                         return Platform.BUTTON
                     elif entity.unit == "Seconds":
@@ -132,19 +132,19 @@ class StuderEntityHelper:
                     else:
                         return Platform.NUMBER
 
-                case FORMAT.FLOAT:
+                case XcomFormat.FLOAT:
                     return Platform.NUMBER
                 
                 case _:
                     _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
                     return None
                 
-        elif entity.obj_type == OBJ_TYPE.INFO:
+        elif entity.category == XcomCategory.INFO:
             match entity.format:
-                case FORMAT.BOOL:
+                case XcomFormat.BOOL:
                     return Platform.BINARY_SENSOR
                 
-                case FORMAT.SHORT_ENUM | FORMAT.LONG_ENUM:
+                case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                     # With exactly 2 possible values that are of ON/OFF type it becomes a binary sensor
                     if len(entity.options or []) == 2:
                         if all(k in BINARY_SENSOR_VALUES_ALL and v in BINARY_SENSOR_VALUES_ALL for k,v in entity.options.items()):
@@ -153,7 +153,7 @@ class StuderEntityHelper:
                     # With more values or not of ON/OFF type it becomes a general sensor
                     return Platform.SENSOR
                 
-                case FORMAT.FLOAT | FORMAT.INT32:
+                case XcomFormat.FLOAT | XcomFormat.INT32:
                     return Platform.SENSOR
                 
                 case _:

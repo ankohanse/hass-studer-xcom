@@ -26,7 +26,7 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 from aioxcom import (
-    FORMAT
+    XcomFormat
 )
 
 
@@ -87,7 +87,7 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
         match self._entity.format:
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
                 # TimeEntity expects time object and can only be between 00:00 and 23:59
                 # We sneakily replace value 1440 (24:00) into 23:59
@@ -124,7 +124,7 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
         """Change the date/time"""
         
         match self._entity.format:
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # TimeEntity is a time object and can only be between 00:00 and 23:59
                 # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
                 

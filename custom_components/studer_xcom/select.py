@@ -24,7 +24,7 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 from aioxcom import (
-    FORMAT,
+    XcomFormat,
 )
 
 
@@ -81,7 +81,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
     def _update_value(self, force:bool=False):
         """Process any changes in value"""
        
-        if self._entity.format != FORMAT.SHORT_ENUM and self._entity.format != FORMAT.LONG_ENUM:
+        if self._entity.format != XcomFormat.SHORT_ENUM and self._entity.format != XcomFormat.LONG_ENUM:
             _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
 
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value

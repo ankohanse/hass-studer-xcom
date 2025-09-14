@@ -42,7 +42,6 @@ from .const import (
     DEFAULT_POLLING_INTERVAL,
     REQ_RETRIES,
     REQ_TIMEOUT,
-    REQ_BURST_SIZE,
     CACHE_WRITE_PERIOD,
 )
 from aioxcom import (
@@ -60,6 +59,8 @@ from aioxcom import (
     XcomDeviceFamily,
     XcomDeviceFamilies,
     XcomDeviceFamilyUnknownException,
+    XcomValues,
+    XcomValuesItem,
 )
 
 
@@ -70,16 +71,18 @@ MODIFIED_PARAMS_TS = "ModifiedParamsTs"
 
 
 class StuderClientConfig(XcomDiscoveredClient):
-    def __init__(self, ip, mac):
+    def __init__(self, ip, mac, guid):
         # From XcomDiscoveredClient
         self.ip = ip
         self.mac = device_registry.format_mac(mac) if mac else None
+        self.guid = guid
 
     @staticmethod
     def from_dict(d: dict[str,Any]):
         return StuderClientConfig(
             d.get("ip", None),
             d.get("mac", None),
+            d.get("guid", None),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -87,10 +90,11 @@ class StuderClientConfig(XcomDiscoveredClient):
         return {
             "ip": self.ip,
             "mac": self.mac,
+            "guid": self.guid,
         }
     
     def __str__(self) -> str:
-        return f"StuderClientConfig(ip={self.ip}, mac={self.mac})"
+        return f"StuderClientConfig(ip={self.ip}, mac={self.mac}, guid={self.guid})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -300,8 +304,8 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         # Id handling
         self._object_id_base = StuderCoordinator.create_id(self._port) # Base for object_id
-        self._unique_id_base = StuderCoordinator.create_id(self._port) # Base for internal unique_id (todo: set to client MAC)
-        self._device_id_base = StuderCoordinator.create_id(self._port) # Base for device_id (todo: set to client MAC)
+        self._unique_id_base = StuderCoordinator.create_id(self._port) # Base for internal unique_id (todo: set to client guid)
+        self._device_id_base = StuderCoordinator.create_id(self._port) # Base for device_id (todo: set to client guid)
         self._valid_unique_ids: dict[Platform, list[str]] = {}
         self._valid_device_ids: list[tuple[str,str]] = []
 
@@ -520,30 +524,29 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         Send out requests to the remote Xcom client for each configured parameter or infos number.
         """
-        for i, entity in enumerate(self._entity_map.values()):
+        
+        diag_key = f"RequestValues"
+        try:
+            request_items: list[XcomValuesItem] = [ XcomValuesItem(entity, code=entity.device_code) for entity in self._entity_map.values() ]
+            request_data = XcomValues(items = request_items)
 
-            diag_key = f"RequestValue {entity.device_code} {entity.level}"
-            try:
-                param = entity
-                addr = entity.device_addr
-            
-                value = await self._api.requestValue(param, addr, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
-                if value is not None:
-                    self._entity_map[entity.object_id].value = value
+            response_data = await self._api.requestValues(request_data, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
+
+            for item in response_data.items:
+                # Find entity matching to this response item
+                entity = next( (e for e in self._entity_map.values() if e.nr == item.datapoint.nr and e.device_code == item.code), None)
+
+                if entity is not None and item.value is not None:
+                    self._entity_map[entity.object_id].value = item.value
                     self._entity_map[entity.object_id].valueModified = self._getModified(entity)
                     self._entity_map_ts = datetime.now()
 
-                    await self._addDiagnostic(diag_key, True)
+            await self._addDiagnostic(diag_key, True)
 
-            except Exception as e:
-                if e is not XcomApiTimeoutException:
-                    _LOGGER.warning(f"Failed to request value {entity.device_code} {entity.nr} from Xcom client: {e}")
-                await self._addDiagnostic(diag_key, False, e)
-
-            # Periodically wait for a second. This will make sure we do not block Xcom-LAN with
-            # too many requests at once and prevent it from uploading data to the Studer portal.
-            if i % REQ_BURST_SIZE == 0:
-                await asyncio.sleep(1)
+        except Exception as e:
+            if e is not XcomApiTimeoutException:
+                _LOGGER.warning(f"Failed to request value {entity.device_code} {entity.nr} from Xcom client: {e}")
+            await self._addDiagnostic(diag_key, False, e)
 
     
     async def async_modify_data(self, entity: StuderEntityData, value, set_modified:bool=True):

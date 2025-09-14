@@ -28,7 +28,7 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 from aioxcom import (
-    FORMAT
+    XcomFormat
 )
 
 
@@ -92,7 +92,7 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         value = self._entity.value     
 
         match self._entity.format:
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # Studer entity value is seconds since 1 Jan 1970 in local timezone. DateTimeEntity expects UTC
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
                 if value is not None:
@@ -131,7 +131,7 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         """Change the date/time"""
         
         match self._entity.format:
-            case FORMAT.INT32:
+            case XcomFormat.INT32:
                 # DateTimeEntity value is UTC, Studer expects seconds since 1 Jan 1970 in local timezone
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
                 dt_local = value.astimezone(self._coordinator.time_zone)

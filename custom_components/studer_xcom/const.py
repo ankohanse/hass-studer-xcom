@@ -8,8 +8,8 @@ from typing import Final
 from homeassistant.const import Platform
 
 from aioxcom import (
-    LEVEL,
-    VOLTAGE,
+    XcomLevel,
+    XcomVoltage,
 )
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
@@ -36,9 +36,9 @@ HUB = "Hub"
 COORDINATOR = "Coordinator"
 
 # configuration items and their defaults
-DEFAULT_VOLTAGE = VOLTAGE.AC240
+DEFAULT_VOLTAGE = XcomVoltage.AC240
 DEFAULT_PORT = 4001
-DEFAULT_USER_LEVEL = LEVEL.BASIC
+DEFAULT_USER_LEVEL = XcomLevel.BASIC
 DEFAULT_POLLING_INTERVAL = 30
 
 DEFAULT_FAMILY_NUMBERS = {
@@ -96,7 +96,6 @@ SWITCH_VALUES_ALL = SWITCH_VALUES_ON + SWITCH_VALUES_OFF
 # Request retries
 REQ_TIMEOUT = 3 # seconds
 REQ_RETRIES = 3 
-REQ_BURST_SIZE = 10 # do 10 requests, then wait a second, then the next 10 requests
 CACHE_WRITE_PERIOD = 60*60 # seconds
 
 # Diagnostics
