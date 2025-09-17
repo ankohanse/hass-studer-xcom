@@ -423,7 +423,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             # Discover information about the Xcom client
             info = await self._discover.discoverClientInfo()
             if info:
-                _LOGGER.info(f"Xcom client info detected; ip={info.ip}, mac={info.mac}")
+                _LOGGER.info(f"Xcom client info detected; ip={info.ip}, mac={info.mac}, guid={info.guid}")
                 self._client_info = StuderClientConfig(
                     info.ip,
                     info.mac,
@@ -912,7 +912,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     except XcomDatapointUnknownException:
                         raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
 
-                    if param.obj_type not in [XcomCategory.INFO, XcomCategory.PARAMETER]:
+                    if param.category not in [XcomCategory.INFO, XcomCategory.PARAMETER]:
                         raise vol.Invalid(f"Number {nr} is not a valid info or param")
 
                     if param.format in [XcomFormat.MENU, XcomFormat.ERROR, XcomFormat.INVALID]:

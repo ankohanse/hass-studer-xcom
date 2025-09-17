@@ -161,7 +161,7 @@ class StuderEntityHelper:
                     return None
                 
         else:
-            _LOGGER.warning(f"Unexpected entity obj_type ({entity.obj_type}) in _get_entity_platform")
+            _LOGGER.warning(f"Unexpected entity category ({entity.category}) in _get_entity_platform")
             return None
     
 
