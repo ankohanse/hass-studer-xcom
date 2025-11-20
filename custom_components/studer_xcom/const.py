@@ -7,7 +7,7 @@ from typing import Final
 
 from homeassistant.const import Platform
 
-from aioxcom import (
+from pystuderxcom import (
     XcomLevel,
     XcomVoltage,
 )
@@ -62,7 +62,7 @@ CONF_CLIENT_INFO = "client_info"
 
 INTEGRATION_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/README.md"
 MOXA_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/Xcom-LAN%20config.md"
-XCOM_APPENDIX_URL = "https://github.com/ankohanse/aioxcom/blob/master/documentation/Technical%20specification%20-%20Xtender%20serial%20protocol%20appendix%20-%201.6.38.pdf"
+XCOM_APPENDIX_URL = "https://github.com/ankohanse/pystuderxcom/blob/master/documentation/Technical%20specification%20-%20Xtender%20serial%20protocol%20appendix%20-%201.6.38.pdf"
 
 #Entity configuration
 CONF_NR = "nr"

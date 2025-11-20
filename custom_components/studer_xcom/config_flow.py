@@ -51,12 +51,13 @@ from .coordinator import (
     StuderClientConfig,
     StuderDeviceConfig,
 )
-from aioxcom import (
+from pystuderxcom import (
+    AsyncXcomDiscover,
+    AsyncXcomFactory,
     XcomLevel,
     XcomFormat,
     XcomVoltage,
     XcomCategory,
-    XcomDiscover,
     XcomDataset,
     XcomDatapoint,
     XcomDatapointUnknownException,
@@ -352,7 +353,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         try:
             _LOGGER.info(f"Discover Moxa Web Config")
-            self._webconfig_url = await XcomDiscover.discoverMoxaWebConfig(self._webconfig_url)
+            self._webconfig_url = await AsyncXcomDiscover.discover_moxa_webconfig(self._webconfig_url)
             if self._webconfig_url:
                 _LOGGER.info(f"Discovered Moxa Web Config at {self._webconfig_url}")
             else:
@@ -415,13 +416,13 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             # Create our dataset and discovery helpers
             if not self._dataset:
-                self._dataset = await XcomDataset.create(self._voltage)
+                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage)
 
             if not self._discover:
-                self._discover = XcomDiscover(self._coordinator._api, self._dataset)
+                self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
 
             # Discover information about the Xcom client
-            info = await self._discover.discoverClientInfo()
+            info = await self._discover.discover_client_info()
             if info:
                 _LOGGER.info(f"Xcom client info detected; ip={info.ip}, mac={info.mac}, guid={info.guid}")
                 self._client_info = StuderClientConfig(
@@ -462,13 +463,13 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             # Create our dataset and discovery helpers
             if not self._dataset:
-                self._dataset = await XcomDataset.create(self._voltage)
+                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage)
 
             if not self._discover:
-                self._discover = XcomDiscover(self._coordinator._api, self._dataset)
+                self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
 
             # Discover Studer Xcom devices
-            devices_new = await self._discover.discoverDevices(getExtendedInfo = True)
+            devices_new = await self._discover.discover_devices(getExtendedInfo = True)
             if not devices_new:
                 self._errors[CONF_PORT] = f"No Studer devices found via Xcom client"
                 return
@@ -547,7 +548,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         Step 3: specify params and infos numbers for each device
         """
         if not self._dataset:
-            self._dataset = await XcomDataset.create(self._voltage)
+            self._dataset = await AsyncXcomFactory.create_dataset(self._voltage)
 
         if user_input is not None:
             # Get form data
@@ -589,12 +590,12 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         datapoints_md += "| :---- | :----- | :---------- |\n"
 
         for idx,device in enumerate(self._devices):
-            family: XcomDeviceFamily = XcomDeviceFamilies.getById(device.family_id)
+            family: XcomDeviceFamily = XcomDeviceFamilies.get_by_id(device.family_id)
             datapoints_md += f"| &nbsp; | &nbsp; | &nbsp; |\n" if idx > 0 else ""
             datapoints_md += f"| &nbsp; | *{device.code}* | {family.model} |\n"
             
             for nr in device.numbers:
-                datapoint: XcomDatapoint = self._dataset.getByNr(nr, family.idForNr)
+                datapoint: XcomDatapoint = self._dataset.get_by_nr(nr, family.id_for_nr)
                 datapoints_md += f"| {datapoint.level} | {nr} | {datapoint.name} |\n"
 
         # Build the schema for the form and show the form
@@ -650,7 +651,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 if device is not None:
                     _LOGGER.debug(f"Step add_menu - next step add_menu_items")
                     self._menu_device = device
-                    self._menu_family = XcomDeviceFamilies.getById(device.family_id)
+                    self._menu_family = XcomDeviceFamilies.get_by_id(device.family_id)
                     self._menu_level = level
                     self._menu_parent_name = "Root"
                     self._menu_parent_nr = 0
@@ -709,7 +710,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     # continue below to show parent menu
 
                 case _:
-                    datapoint = self._dataset.getByNr(int(key))
+                    datapoint = self._dataset.get_by_nr(int(key))
                     if datapoint.format == XcomFormat.MENU:
                         self._menu_history.append( (self._menu_parent_name, self._menu_parent_nr) )
                         self._menu_parent_name = datapoint.name
@@ -727,14 +728,14 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                         return await self.async_step_numbers()                      
                     
         # Build the menu options for the form and show the form
-        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} {self._menu_family.idForNr}")
+        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} {self._menu_family.id_for_nr}")
         self._menu_options = {}
         self._menu_options["back"] = "back" #"Back to numbers overview"
 
         if len(self._menu_history) > 0:
             self._menu_options["parent"] = "parent" #"Back to parent menu"
 
-        items = self._dataset.getMenuItems(self._menu_parent_nr, self._menu_family.idForNr)
+        items = self._dataset.getMenuItems(self._menu_parent_nr, self._menu_family.id_for_nr)
         for item in items:
             if item.level <= self._menu_level:
                 nr = f"{item.level} {item.nr} - " if item.nr >= 1000 else ""
@@ -889,7 +890,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
     async def _valid_numbers(self, code: str, family_id:str) -> Callable[[Any], list[int]]:
 
-        family = XcomDeviceFamilies.getById(family_id)
+        family = XcomDeviceFamilies.get_by_id(family_id)
         
         def validate(value: Any, check_family=True, check_level=True) -> list[int]:
 
@@ -908,7 +909,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
                 if check_family:
                     try:
-                        param = self._dataset.getByNr(nr, family.idForNr)
+                        param = self._dataset.get_by_nr(nr, family.id_for_nr)
                     except XcomDatapointUnknownException:
                         raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
 

@@ -26,7 +26,7 @@ from .coordinator import (
     StuderCoordinator,
     StuderEntityData,
 )
-from aioxcom import (
+from pystuderxcom import (
     XcomFormat,
     XcomLevel,
     XcomCategory,
