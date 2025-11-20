@@ -672,7 +672,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             }),
             vol.Required(CONF_USER_LEVEL, description={"suggested_value": translation_key(self._user_level)}): selector({
                 "select": { 
-                    "options": [ translation_key(level) for level in XcomLevel if level <= XcomLevel.EXPERT ],
+                    "options": [ translation_key(level) for level in XcomLevel if XcomLevel.INFO <= level <= XcomLevel.EXPERT ],
                     "mode": "dropdown",
                     "translation_key": CONF_USER_LEVEL
                 }
