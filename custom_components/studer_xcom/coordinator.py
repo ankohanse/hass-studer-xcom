@@ -73,17 +73,15 @@ MODIFIED_PARAMS_TS = "ModifiedParamsTs"
 
 
 class StuderClientConfig(XcomDiscoveredClient):
-    def __init__(self, ip, mac, guid):
+    def __init__(self, ip, guid):
         # From XcomDiscoveredClient
         self.ip = ip
-        self.mac = device_registry.format_mac(mac) if mac else None
         self.guid = guid
 
     @staticmethod
     def from_dict(d: dict[str,Any]):
         return StuderClientConfig(
             d.get("ip", None),
-            d.get("mac", None),
             d.get("guid", None),
         )
 
@@ -91,12 +89,11 @@ class StuderClientConfig(XcomDiscoveredClient):
         """Return dictionary version of this client info."""
         return {
             "ip": self.ip,
-            "mac": self.mac,
             "guid": self.guid,
         }
     
     def __str__(self) -> str:
-        return f"StuderClientConfig(ip={self.ip}, mac={self.mac}, guid={self.guid})"
+        return f"StuderClientConfig(ip={self.ip}, guid={self.guid})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -302,6 +299,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                     or config.get(CONF_DEVICES, [])
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
 
+        # Api
         self._api = AsyncXcomApiTcp(mode=XcomApiTcpMode.SERVER, listen_port=self._listen_port)
 
         # Id handling

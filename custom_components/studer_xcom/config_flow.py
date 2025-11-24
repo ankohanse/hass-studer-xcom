@@ -424,10 +424,9 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             # Discover information about the Xcom client
             info = await self._discover.discover_client_info()
             if info:
-                _LOGGER.info(f"Xcom client info detected; ip={info.ip}, mac={info.mac}, guid={info.guid}")
+                _LOGGER.info(f"Xcom client info detected; ip={info.ip}, guid={info.guid}")
                 self._client_info = StuderClientConfig(
                     info.ip,
-                    info.mac,
                     info.guid,
                 )
             else:
@@ -735,7 +734,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         if len(self._menu_history) > 0:
             self._menu_options["parent"] = "parent" #"Back to parent menu"
 
-        items = self._dataset.getMenuItems(self._menu_parent_nr, self._menu_family.id_for_nr)
+        items = self._dataset.get_menu_items(self._menu_parent_nr, self._menu_family.id_for_nr)
         for item in items:
             if item.level <= self._menu_level:
                 nr = f"{item.level} {item.nr} - " if item.nr >= 1000 else ""
