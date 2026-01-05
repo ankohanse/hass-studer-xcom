@@ -24,7 +24,7 @@ from .entity_base import (
 from .entity_helper import (
     StuderEntityHelperFactory,
 )
-from aioxcom import (
+from pystuderxcom import (
     XcomFormat,
 )
 

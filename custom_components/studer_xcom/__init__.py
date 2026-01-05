@@ -52,9 +52,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up the Studer Xcom platforms from a config entry."""
 
-    # Assign the HA configured log level of this module to the aioxcom module
+    # Assign the HA configured log level of this module to the pystuderxcom module
     log_level: int = _LOGGER.getEffectiveLevel()
-    lib_logger: logging.Logger = logging.getLogger("aioxcom")
+    lib_logger: logging.Logger = logging.getLogger("pystuderxcom")
     lib_logger.setLevel(log_level)
 
     _LOGGER.info(f"Logging at {logging.getLevelName(log_level)}")

@@ -1,6 +1,6 @@
 [![version](https://img.shields.io/github/v/release/ankohanse/hass-studer-xcom?style=for-the-badge)](https://github.com/ankohanse/hass-studer-xcom)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)
-[![maintained](https://img.shields.io/maintenance/yes/2025?style=for-the-badge)](https://github.com/ankohanse/hass-studer-xcom)<br/>
+[![maintained](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)](https://github.com/ankohanse/hass-studer-xcom)<br/>
 [![license](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](https://github.com/ankohanse/hass-studer-xcom/blob/main/LICENSE)
 [![buy_me_a_coffee](https://img.shields.io/badge/If%20you%20like%20it-Buy%20me%20a%20coffee-yellow.svg?style=for-the-badge)](https://www.buymeacoffee.com/ankohanse)
 
@@ -153,7 +153,7 @@ Once you are satisfied with the presented info and params numbers, select action
 ![setup_step_2](documentation/setup_numbers.png)
 
 A full list of available numbers can be found in the library used by this integration: 
-- [aioxcom/xcom_datapoints_240v.json](https://github.com/ankohanse/aioxcom/blob/master/src/aioxcom/xcom_datapoints_240v.json)
+- [pystuderxcom/xcom_datapoints_240v.json](https://github.com/ankohanse/pystuderxcom/blob/master/src/pystuderxcom/xcom_datapoints_240v.json)
 
 Or it can be downloaded from Studer-Innotec:
 - Open [www.studer-innotec.com](https://www.studer-innotec.com) in a browser

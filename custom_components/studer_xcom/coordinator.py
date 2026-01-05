@@ -44,8 +44,10 @@ from .const import (
     REQ_TIMEOUT,
     CACHE_WRITE_PERIOD,
 )
-from aioxcom import (
-    XcomApiTcp,
+from pystuderxcom import (
+    AsyncXcomApiTcp,
+    AsyncXcomFactory,
+    XcomApiTcpMode,
     XcomApiWriteException,
     XcomApiReadException,
     XcomApiTimeoutException,
@@ -71,17 +73,15 @@ MODIFIED_PARAMS_TS = "ModifiedParamsTs"
 
 
 class StuderClientConfig(XcomDiscoveredClient):
-    def __init__(self, ip, mac, guid):
+    def __init__(self, ip, guid):
         # From XcomDiscoveredClient
         self.ip = ip
-        self.mac = device_registry.format_mac(mac) if mac else None
         self.guid = guid
 
     @staticmethod
     def from_dict(d: dict[str,Any]):
         return StuderClientConfig(
             d.get("ip", None),
-            d.get("mac", None),
             d.get("guid", None),
         )
 
@@ -89,12 +89,11 @@ class StuderClientConfig(XcomDiscoveredClient):
         """Return dictionary version of this client info."""
         return {
             "ip": self.ip,
-            "mac": self.mac,
             "guid": self.guid,
         }
     
     def __str__(self) -> str:
-        return f"StuderClientConfig(ip={self.ip}, mac={self.mac}, guid={self.guid})"
+        return f"StuderClientConfig(ip={self.ip}, guid={self.guid})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -293,19 +292,20 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._is_temp = is_temp
 
         self._voltage: str = config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
-        self._port: int = config.get(CONF_PORT, DEFAULT_PORT)
+        self._listen_port: int = config.get(CONF_PORT, DEFAULT_PORT)
 
         # Get devices from options (with fallback to config for backwards compatibility)
         devices_data = options.get(CONF_DEVICES, None) \
                     or config.get(CONF_DEVICES, [])
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
 
-        self._api = XcomApiTcp(self._port)
+        # Api
+        self._api = AsyncXcomApiTcp(mode=XcomApiTcpMode.SERVER, listen_port=self._listen_port)
 
         # Id handling
-        self._object_id_base = StuderCoordinator.create_id(self._port) # Base for object_id
-        self._unique_id_base = StuderCoordinator.create_id(self._port) # Base for internal unique_id (todo: set to client guid)
-        self._device_id_base = StuderCoordinator.create_id(self._port) # Base for device_id (todo: set to client guid)
+        self._object_id_base = StuderCoordinator.create_id(self._listen_port) # Base for object_id
+        self._unique_id_base = StuderCoordinator.create_id(self._listen_port) # Base for internal unique_id (todo: set to client guid)
+        self._device_id_base = StuderCoordinator.create_id(self._listen_port) # Base for device_id (todo: set to client guid)
         self._valid_unique_ids: dict[Platform, list[str]] = {}
         self._valid_device_ids: list[tuple[str,str]] = []
 
@@ -316,7 +316,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         # Cached data to persist updated params saved into device RAM
         self._hass = hass
-        self._store_key = StuderCoordinator.create_id(self._port)
+        self._store_key = StuderCoordinator.create_id(self._listen_port)
         self._store = StuderCoordinatorStore(hass, self._store_key)
         self._cache = None
         self._cache_last_write = datetime.now()
@@ -388,15 +388,15 @@ class StuderCoordinator(DataUpdateCoordinator):
             return entity_map
 
         # Load XcomDataset from file
-        dataset = await XcomDataset.create(self._voltage)
+        dataset = await AsyncXcomFactory.create_dataset(self._voltage)
 
         # Resolve all numbers for each device
         for device in self._devices:
-            family = XcomDeviceFamilies.getById(device.family_id)
+            family = XcomDeviceFamilies.get_by_id(device.family_id)
 
             for nr in device.numbers:
                 try:
-                    param = dataset.getByNr(nr, family.idForNr)
+                    param = dataset.get_by_nr(nr, family.id_for_nr)
                     entity = self._create_entity(param, family, device)
                     if entity:
                         entity_map[entity.object_id] = entity
@@ -438,7 +438,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         valid_ids: list[tuple[str,str]] = []
 
         for device in self._devices:
-            family = XcomDeviceFamilies.getById(device.family_id)
+            family = XcomDeviceFamilies.get_by_id(device.family_id)
             device_id = StuderCoordinator.create_id(PREFIX_ID, self._device_id_base, device.code)
 
             _LOGGER.debug(f"Create device {device_id}")
@@ -530,7 +530,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             request_items: list[XcomValuesItem] = [ XcomValuesItem(entity, code=entity.device_code) for entity in self._entity_map.values() ]
             request_data = XcomValues(items = request_items)
 
-            response_data = await self._api.requestValues(request_data, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
+            response_data = await self._api.request_values(request_data, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
 
             for item in response_data.items:
                 # Find entity matching to this response item
@@ -556,7 +556,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             param = entity
             addr = entity.device_addr
 
-            result = await self._api.updateValue(param, value, dstAddr=addr)
+            result = await self._api.update_value(param, value, dstAddr=addr)
             if result==True:
                 _LOGGER.info(f"Successfully updated {entity.device_code} {entity.nr} to value {value}")
 
@@ -701,7 +701,7 @@ class StuderCoordinator(DataUpdateCoordinator):
     
     async def async_get_diagnostics(self) -> dict[str, Any]:
         entity_map = { k: v.__dict__ for k,v in self._entity_map.items() }
-        diag_api = await self._api.getDiagnostics()
+        diag_api = await self._api.get_diagnostics()
 
         return {
             "data": {
