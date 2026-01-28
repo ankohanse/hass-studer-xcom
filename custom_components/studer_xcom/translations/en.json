@@ -4,7 +4,8 @@
     "step": {
       "client": {
         "data": {
-          "voltage": "AC voltage",
+          "voltage_ac": "Output voltage",
+          "voltage_dc": "Battery voltage",
           "port": "Port"
         },
         "data_description": {
@@ -100,10 +101,17 @@
     }
   },
   "selector": {
-    "voltage": {
+    "voltage_ac": {
       "options": {
         "120_vac": "120 Vac",
         "240_vac": "240 Vac"
+      }
+    },
+    "voltage_dc": {
+      "options": {
+        "12_vdc": "12 Vdc",
+        "24_vdc": "24 Vdc",
+        "48_vdc": "48 Vdc"
       }
     },
     "numbers_action": {

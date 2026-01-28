@@ -36,7 +36,8 @@ HUB = "Hub"
 COORDINATOR = "Coordinator"
 
 # configuration items and their defaults
-DEFAULT_VOLTAGE = XcomVoltage.AC240
+DEFAULT_VOLTAGE_AC = XcomVoltage.AC240
+DEFAULT_VOLTAGE_DC = XcomVoltage.DC48
 DEFAULT_PORT = 4001
 DEFAULT_USER_LEVEL = XcomLevel.BASIC
 DEFAULT_POLLING_INTERVAL = 30
@@ -53,7 +54,9 @@ DEFAULT_FAMILY_NUMBERS = {
     "vs": [15017,15030,15054,15057,15064,15065,15108],
 }
 
-CONF_VOLTAGE = "voltage"
+CONF_VOLTAGE = "voltage"    # depricated, replaced by CONF_VOLTAGE_AC
+CONF_VOLTAGE_AC = "voltage_ac"
+CONF_VOLTAGE_DC = "voltage_dc"
 CONF_USER_LEVEL = "user_level"
 CONF_OPTIONS = "options"
 CONF_POLLING_INTERVAL = "polling_interval"

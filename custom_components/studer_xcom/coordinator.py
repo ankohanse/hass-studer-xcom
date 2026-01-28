@@ -36,8 +36,11 @@ from .const import (
     PREFIX_ID,
     PREFIX_NAME,
     CONF_VOLTAGE,
+    CONF_VOLTAGE_AC,
+    CONF_VOLTAGE_DC,
     CONF_POLLING_INTERVAL,
-    DEFAULT_VOLTAGE,
+    DEFAULT_VOLTAGE_AC,
+    DEFAULT_VOLTAGE_DC,
     DEFAULT_PORT,
     DEFAULT_POLLING_INTERVAL,
     REQ_RETRIES,
@@ -232,7 +235,7 @@ class StuderCoordinatorFactory:
 
 
     @staticmethod
-    async def async_create_temp(voltage, port):
+    async def async_create_temp(voltage_ac, voltage_dc, port):
         """
         Get temporary Coordinator for a given port.
         This coordinator will only provide limited functionality
@@ -248,7 +251,8 @@ class StuderCoordinatorFactory:
             
         # Mimick properties from the config_entry
         config: dict[str,Any] = {
-            CONF_VOLTAGE: voltage,
+            CONF_VOLTAGE_AC: voltage_ac,
+            CONF_VOLTAGE_DC: voltage_dc,
             CONF_PORT: port,
         }
         options: dict[str,Any] = {
@@ -256,10 +260,15 @@ class StuderCoordinatorFactory:
         }
         
         # Already have a coordinator for this port and voltage?
-        coordinator = next( 
-            (c for c in hass.data[DOMAIN][COORDINATOR].values() if c.config.get(CONF_PORT, None)==port and c.config.get(CONF_VOLTAGE, None)==voltage), 
-            None
-        )
+        coordinator = None
+        for c in hass.data[DOMAIN][COORDINATOR].values():
+            p  = c.config.get(CONF_PORT, DEFAULT_PORT)
+            ac = c.config.get(CONF_VOLTAGE_AC, None) or c.config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE_AC)
+            dc = c.config.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
+
+            if p==port and ac==voltage_ac and dc==voltage_dc:
+                coordinator = c
+                break
 
         if not coordinator:
             # Get a temporary instance of our coordinator. This is unique to this port and voltage
@@ -291,7 +300,8 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._options: dict[str,Any] = options
         self._is_temp = is_temp
 
-        self._voltage: str = config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
+        self._voltage_ac: str = config.get(CONF_VOLTAGE_AC, config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE_AC))
+        self._voltage_dc: str = config.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
         self._listen_port: int = config.get(CONF_PORT, DEFAULT_PORT)
 
         # Get devices from options (with fallback to config for backwards compatibility)
@@ -388,7 +398,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             return entity_map
 
         # Load XcomDataset from file
-        dataset = await AsyncXcomFactory.create_dataset(self._voltage)
+        dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
 
         # Resolve all numbers for each device
         for device in self._devices:

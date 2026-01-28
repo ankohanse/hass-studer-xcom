@@ -32,12 +32,15 @@ from homeassistant.const import (
 from .const import (
     DOMAIN,
     CONF_VOLTAGE,
+    CONF_VOLTAGE_AC,
+    CONF_VOLTAGE_DC,
     CONF_USER_LEVEL,
     CONF_POLLING_INTERVAL,
     CONF_WEBCONFIG_URL,
     CONF_CLIENT_INFO,
     DEFAULT_PORT,
-    DEFAULT_VOLTAGE,
+    DEFAULT_VOLTAGE_AC,
+    DEFAULT_VOLTAGE_DC,
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_FAMILY_NUMBERS,
@@ -159,7 +162,8 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         # Load existing values for config and options or assign defaults
         # Note that some values have moved from config to options and we fallback for backwards compatibility
-        self._voltage = configs.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
+        self._voltage_ac = configs.get(CONF_VOLTAGE_AC, None) or configs.get(CONF_VOLTAGE, DEFAULT_VOLTAGE_AC)
+        self._voltage_dc = configs.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
         self._port = configs.get(CONF_PORT, DEFAULT_PORT)
 
         self._webconfig_url = configs.get(CONF_WEBCONFIG_URL, "")
@@ -209,8 +213,10 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         if user_input is not None:
             # Get form data
             _LOGGER.debug(f"Step client - handle input {user_input}")
-            voltage_key = user_input.get(CONF_VOLTAGE, DEFAULT_VOLTAGE)
-            self._voltage = next((v for v in XcomVoltage if translation_key(v) == voltage_key), DEFAULT_VOLTAGE)
+            voltage_ac_key = user_input.get(CONF_VOLTAGE_AC, DEFAULT_VOLTAGE_AC)
+            voltage_dc_key = user_input.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
+            self._voltage_ac = next((v for v in XcomVoltage if translation_key(v) == voltage_ac_key), DEFAULT_VOLTAGE_AC)
+            self._voltage_dc = next((v for v in XcomVoltage if translation_key(v) == voltage_dc_key), DEFAULT_VOLTAGE_DC)
             self._port = user_input.get(CONF_PORT, DEFAULT_PORT)
 
             # Check if port is not already in user for another Hub
@@ -234,10 +240,16 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         return self.async_show_form(
             step_id = "client", 
             data_schema = vol.Schema({
-                vol.Required(CONF_VOLTAGE, description={"suggested_value": translation_key(self._voltage)}): selector({                    "select": { 
-                        "options": [translation_key(v) for v in XcomVoltage],
+                vol.Required(CONF_VOLTAGE_AC, description={"suggested_value": translation_key(self._voltage_ac)}): selector({                    "select": { 
+                        "options": [translation_key(v) for v in XcomVoltage if 'ac' in str(v)],
                         "mode": "dropdown",
-                        "translation_key": CONF_VOLTAGE
+                        "translation_key": CONF_VOLTAGE_AC
+                    }
+                }),
+                vol.Required(CONF_VOLTAGE_DC, description={"suggested_value": translation_key(self._voltage_dc)}): selector({                    "select": { 
+                        "options": [translation_key(v) for v in XcomVoltage if 'dc' in str(v)],
+                        "mode": "dropdown",
+                        "translation_key": CONF_VOLTAGE_DC
                     }
                 }),
                 vol.Required(CONF_PORT, description={"suggested_value": self._port}): cv.port
@@ -380,7 +392,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             # Create temporary coordinator and let Xcom connect to it
             if not self._coordinator:
-                self._coordinator = await StuderCoordinatorFactory.async_create_temp(self._voltage, self._port)
+                self._coordinator = await StuderCoordinatorFactory.async_create_temp(self._voltage_ac, self._voltage_dc, self._port)
 
             if await self._coordinator.start():
                 _LOGGER.info("Xcom client connected")
@@ -416,7 +428,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             # Create our dataset and discovery helpers
             if not self._dataset:
-                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage)
+                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
 
             if not self._discover:
                 self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
@@ -462,7 +474,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             # Create our dataset and discovery helpers
             if not self._dataset:
-                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage)
+                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
 
             if not self._discover:
                 self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
@@ -547,7 +559,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         Step 3: specify params and infos numbers for each device
         """
         if not self._dataset:
-            self._dataset = await AsyncXcomFactory.create_dataset(self._voltage)
+            self._dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
 
         if user_input is not None:
             # Get form data
@@ -967,7 +979,8 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         # Create the integration entry
         title = str.format(TITLE_FMT, port=self._port)
         data = {
-            CONF_VOLTAGE: self._voltage,
+            CONF_VOLTAGE_AC: self._voltage_ac,
+            CONF_VOLTAGE_DC: self._voltage_dc,
             CONF_PORT: self._port,
             CONF_WEBCONFIG_URL: self._webconfig_url,
             CONF_CLIENT_INFO: self._client_info.as_dict(),
