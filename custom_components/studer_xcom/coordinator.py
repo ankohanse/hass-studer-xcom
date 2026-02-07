@@ -732,8 +732,8 @@ class StuderCoordinator(DataUpdateCoordinator):
     @staticmethod
     def create_id(*args):
         s = '_'.join(str(x) for x in args).strip('_')
-        s = re.sub(' ', '_', s)
-        s = re.sub('[^a-z0-9_-]+', '', s.lower())
+        s = re.sub('[ -]', '_', s)
+        s = re.sub('[^a-z0-9_]+', '', s.lower())
         return s        
 
 
