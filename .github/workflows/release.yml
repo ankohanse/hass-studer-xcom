@@ -1,0 +1,26 @@
+name: Zip Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    name: SmartWater release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Zip
+        run: |
+          zip -r studer_xcom.zip ./custom_components/studer_xcom/
+
+      - name: Upload Zip to Release
+        uses: softprops/action-gh-release@v2.2.1
+        with:
+          files: studer_xcom.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
