@@ -19,7 +19,7 @@ jobs:
           zip -r studer_xcom.zip ./custom_components/studer_xcom/
 
       - name: Upload Zip to Release
-        uses: softprops/action-gh-release@v2.2.1
+        uses: softprops/action-gh-release@v2.5.0
         with:
           files: studer_xcom.zip
         env:
