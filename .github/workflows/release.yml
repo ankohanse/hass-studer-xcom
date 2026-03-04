@@ -16,11 +16,12 @@ jobs:
 
       - name: Create Zip
         run: |
-          zip -r studer_xcom.zip ./custom_components/studer_xcom/
+          cd "${{ github.workspace }}/custom_components/studer_xcom"
+          zip -r studer_xcom.zip ./
 
       - name: Upload Zip to Release
         uses: softprops/action-gh-release@v2.5.0
         with:
-          files: studer_xcom.zip
+          files: ${{ github.workspace }}/custom_components/studer_xcom/studer_xcom.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
