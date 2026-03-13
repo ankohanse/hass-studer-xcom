@@ -139,7 +139,7 @@ class StuderEntityHelper:
                     _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
                     return None
                 
-        elif entity.category == XcomCategory.INFO:
+        elif entity.category == XcomCategory.INFO: 
             match entity.format:
                 case XcomFormat.BOOL:
                     return Platform.BINARY_SENSOR
@@ -153,7 +153,7 @@ class StuderEntityHelper:
                     # With more values or not of ON/OFF type it becomes a general sensor
                     return Platform.SENSOR
                 
-                case XcomFormat.FLOAT | XcomFormat.INT32:
+                case XcomFormat.FLOAT | XcomFormat.INT32 | XcomFormat.STRING:
                     return Platform.SENSOR
                 
                 case _:

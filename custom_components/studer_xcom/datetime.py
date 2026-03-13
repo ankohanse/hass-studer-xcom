@@ -95,12 +95,7 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
             case XcomFormat.INT32:
                 # Studer entity value is seconds since 1 Jan 1970 in local timezone. DateTimeEntity expects UTC
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
-                if value is not None:
-                    ts_local = int(value)
-                    dt_local = dt_util.utc_from_timestamp(ts_local).replace(tzinfo=self._coordinator.time_zone)
-                    attr_val = dt_local
-                else:
-                    attr_val = None
+                attr_val = self._coordinator.timestamp_to_datetime(value)
 
             case _:
                 _LOGGER.error(f"Unexpected format ({self._entity.format}) for a datetime entity")
@@ -134,9 +129,7 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
             case XcomFormat.INT32:
                 # DateTimeEntity value is UTC, Studer expects seconds since 1 Jan 1970 in local timezone
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
-                dt_local = value.astimezone(self._coordinator.time_zone)
-                ts_local = dt_util.as_timestamp(dt_local.replace(tzinfo=timezone.utc))
-                entity_value = int(ts_local)
+                entity_value = self._coordinator.datetime_to_timestamp(value)
 
             case _:
                 _LOGGER.error(f"Unexpected format ({self._entity.format}) for a datetime entity")

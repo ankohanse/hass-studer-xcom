@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import json
 from typing import Any
@@ -20,20 +21,21 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.translation import async_get_translations
 from homeassistant.exceptions import ConfigEntryNotReady
 
+from homeassistant.const import (
+    CONF_PORT,
+)
 
 from .coordinator import (
     StuderCoordinatorFactory,
     StuderCoordinator
 )
-
-from homeassistant.const import (
-    CONF_PORT,
-)
-
 from .const import (
     DOMAIN,
     PLATFORMS,
     TITLE_FMT,
+)
+from .services import (
+    async_setup_services,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     for entry in hass.config_entries.async_entries(DOMAIN):
         if not isinstance(entry.unique_id, str):
             hass.config_entries.async_update_entry(entry, unique_id=str(entry.unique_id))
+
     return True
 
 
@@ -84,6 +87,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     # Cleanup entities and devices
     await coordinator.async_cleanup_entities(config_entry)
     await coordinator.async_cleanup_devices(config_entry)
+
+    # Setup services
+    await async_setup_services(hass, config_entry)
 
     # Reload entry when it is updated
     config_entry.async_on_unload(config_entry.add_update_listener(_async_update_listener))
