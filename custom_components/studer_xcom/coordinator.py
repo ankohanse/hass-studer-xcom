@@ -587,6 +587,33 @@ class StuderCoordinator(DataUpdateCoordinator):
             await self._addDiagnostic(diag_key, False, e)
 
         return False
+    
+
+    async def async_get_message(self, index:int) -> dict:
+        """"""
+        diag_key = f"GetMessage"
+        try:
+            result = await self._api.request_message(index, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
+            if result is not None:
+                # Lookup code from addr within the available devices
+                code = None
+                for d in self._devices:
+                    if (code := XcomDeviceFamilies.get_code_by_addr(result.source_address, d.family_id)) is not None:
+                        break
+
+                # Convert from XcomMessage to dict
+                return {
+                    "message": result.message_string,
+                    "source": code,
+                    "timestamp": datetime.fromtimestamp(result.timestamp, timezone.utc).isoformat(),
+                    "total": result.message_total if index==0 else None,
+                }
+            
+        except Exception as e:
+            _LOGGER.warning(f"Failed to get message {index} via Xcom client: {e}")
+            await self._addDiagnostic(diag_key, False, e)
+
+        return { "error": f"No message found for index {index}" }
 
 
     async def _async_read_cache(self):
@@ -728,6 +755,31 @@ class StuderCoordinator(DataUpdateCoordinator):
             }
         },
     
+    
+    def addr_to_code(self, addr):
+        """Convert a device address into a more user friendly device code"""
+        return next( (d.code for d in self._devices if d.addr == addr), addr)
+    
+
+    def timestamp_to_datetime(self, ts):
+        """Convert a timestamp (seconds since 1-1-1970) into a datetime object"""
+        if ts is None:
+            return None
+        
+        ts_local = int(ts)
+        dt_local = dt_util.utc_from_timestamp(ts_local).replace(tzinfo=self.time_zone)
+        return dt_local
+    
+
+    def datetime_to_timestamp(self, dt):
+        """Convert a datetime object into a timestamp (seconds since 1-1-1970)"""
+        if dt is None:
+            return None
+        
+        dt_local = dt.astimezone(self.time_zone)
+        ts_local = dt_util.as_timestamp(dt_local.replace(tzinfo=timezone.utc))
+        return int(ts_local)
+
 
     @staticmethod
     def create_id(*args):

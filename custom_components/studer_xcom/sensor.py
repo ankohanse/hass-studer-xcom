@@ -81,6 +81,8 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
     def _update_value(self, force:bool=False):
         """Process any changes in value"""
         
+        _LOGGER.debug(f"sensor::_update_value, id={self.entity_id}, entity_value={self._entity.value} ({type(self._entity.value)}), format={self._entity.format}")
+
         # Transform values according to the metadata params for this status/sensor
         match self._entity.format:
             case XcomFormat.FLOAT:
@@ -88,26 +90,37 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
                 attr_digits = 3
-                attr_val = round(float(self._entity.value) * weight, attr_digits) if self._entity.value!=None and not math.isnan(self._entity.value) else None
+                attr_val = round(float(self._entity.value) * weight, attr_digits) if self._entity.value is not None and isinstance(self._entity.value,(float,int)) and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
 
             case XcomFormat.INT32:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
-                attr_val = int(self._entity.value) * weight if self._entity.value!=None and not math.isnan(self._entity.value) else None
+                attr_val = int(self._entity.value) * weight if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
                     
             case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
                 # Lookup the dict string for the value and otherwise return the value itself
                 weight = None
                 attr_precision = None
-                attr_val = self._entity.options.get(str(self._entity.value), self._entity.value) if self._entity.value!=None and not math.isnan(self._entity.value) else None
+                attr_val = self._entity.options.get(str(self._entity.value), self._entity.value) if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
+                attr_unit = None
+
+            case XcomFormat.STRING:
+                # return the value itself
+                weight = None
+                attr_precision = None
+                attr_val = self._entity.value if self._entity.value is not None else None
                 attr_unit = None
 
             case _:
                 _LOGGER.warning(f"Unexpected entity format ({self._entity.format}) for a sensor")
                 return
+            
+        match self._entity.unit:
+            case 'addr':    attr_val, attr_precision = self.coordinator.addr_to_code(attr_val), None
+            case 'Seconds': attr_val, attr_precision = self.coordinator.timestamp_to_datetime(attr_val), None
         
         # update value if it has changed
         changed = False

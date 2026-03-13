@@ -187,7 +187,7 @@ class StuderEntity(RestoreEntity):
             case 's':           return UnitOfTime.SECONDS
             case 'sec':         return UnitOfTime.SECONDS
             case 'seconds':     return UnitOfTime.SECONDS
-            case 'Seconds':     return UnitOfTime.SECONDS
+            case 'Seconds':     return None                 # Timestamp
             case '%':           return PERCENTAGE
             case '% SOC':       return PERCENTAGE
             case 'V':           return UnitOfElectricPotential.VOLT
@@ -209,6 +209,7 @@ class StuderEntity(RestoreEntity):
             case 'Hz':          return UnitOfFrequency.HERTZ
             case 'Ctmp':        return None
             case 'Cdyn':        return None
+            case 'addr':        return None
             case '':            return None
             case 'None' | None: return None
             
@@ -227,6 +228,7 @@ class StuderEntity(RestoreEntity):
             case UnitOfTemperature.CELSIUS:         return 'mdi:thermometer'
             case UnitOfTemperature.FAHRENHEIT:      return 'mdi:thermometer'
             case UnitOfTime.DAYS:                   return 'mdi:timer'
+            case UnitOfTime.DAYS:                   return 'mdi:timer'
             case UnitOfTime.HOURS:                  return 'mdi:timer'
             case UnitOfTime.MINUTES:                return 'mdi:timer-sand'
             case UnitOfTime.SECONDS:                return 'mdi:timer'
@@ -243,6 +245,9 @@ class StuderEntity(RestoreEntity):
             case UnitOfEnergy.MEGA_WATT_HOUR:       return 'mdi:lightning'
             case UnitOfApparentPower.VOLT_AMPERE:   return 'mdi:power-plug'
             case UnitOfFrequency.HERTZ:             return None
+
+        match self._entity.unit:
+            case 'Seconds':                         return 'mdi:clock'      # timestamp
             case _:                                 return None
     
     
@@ -285,6 +290,9 @@ class StuderEntity(RestoreEntity):
             case UnitOfEnergy.MEGA_WATT_HOUR:       return 3    # ENERGY
             case UnitOfApparentPower.VOLT_AMPERE:   return 3
             case UnitOfFrequency.HERTZ:             return 1    # FREQUENCY
+
+        match self._entity.unit:
+            case 'Seconds':                         return 0    # timestamp
             case _:                                 return 3
     
     
@@ -341,12 +349,14 @@ class StuderEntity(RestoreEntity):
             case UnitOfEnergy.MEGA_WATT_HOUR:       return SensorDeviceClass.ENERGY
             case UnitOfApparentPower.VOLT_AMPERE:   return None
             case UnitOfFrequency.HERTZ:             return SensorDeviceClass.FREQUENCY
-            case _:                                 return None
-    
+
+        match self._entity.unit:
+            case 'Seconds':                         return SensorDeviceClass.TIMESTAMP
+
     
     def get_sensor_state_class(self) -> SensorStateClass|None:
         # Return StateClass=None for Enum or Label
-        if self._entity.format == XcomFormat.SHORT_ENUM or self._entity.format == XcomFormat.LONG_ENUM:
+        if self._entity.format in [XcomFormat.SHORT_ENUM, XcomFormat.LONG_ENUM, XcomFormat.STRING]:
             return None
         
         # Return StateClass=None for params that are a setting, unlikely to change often
@@ -354,7 +364,9 @@ class StuderEntity(RestoreEntity):
             return None
         
         # Return StateClass=None for some specific entities
-        nrs_none = []
+        nrs_none = [
+            99022,  # Xcom
+        ]
         if self._entity.nr in nrs_none:
             return None
         
@@ -374,7 +386,7 @@ class StuderEntity(RestoreEntity):
             return SensorStateClass.TOTAL_INCREASING
 
         # Return StateClass=None depending on device-class
-        dcs_none = [SensorDeviceClass.ENERGY]
+        dcs_none = [SensorDeviceClass.ENERGY, SensorDeviceClass.TIMESTAMP]
         if self.get_sensor_device_class() in dcs_none:
             return None
 
