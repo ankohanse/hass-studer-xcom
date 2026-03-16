@@ -602,12 +602,15 @@ class StuderCoordinator(DataUpdateCoordinator):
                         break
 
                 # Convert from XcomMessage to dict
-                return {
+                response = {
                     "message": result.message_string,
                     "source": code,
                     "timestamp": datetime.fromtimestamp(result.timestamp, timezone.utc).isoformat(),
-                    "total": result.message_total if index==0 else None,
                 }
+                if index==0:
+                    response["total"] = result.message_total
+                
+                return response
             
         except Exception as e:
             _LOGGER.warning(f"Failed to get message {index} via Xcom client: {e}")
