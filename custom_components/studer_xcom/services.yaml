@@ -1,26 +1,13 @@
 # Services for the Studer-Xcom integration
 
 get_message:
-  # If the service action accepts entity IDs, target allows the user to specify
-  # entities by entity, device, or area. If `target` is specified, `entity_id`
-  # should not be  defined in the `fields` map. By default it shows only targets
-  # matching entities from the same domain as the action, but if further
-  # customization is required, target supports the entity, device, and area
-  # selectors (https://www.home-assistant.io/docs/blueprint/selectors/).
-  # Entity selector parameters will automatically be applied to device and area,
-  # and device selector parameters will automatically be applied to area.
+  # The target allows filtering the scope of the service call
   #target:
-  #  config_entry_id:
-  #    name: "Config Entry"
-  #    description: "The config entry to target"
-  #    selector:
-  #      config_entry:
-  #        integration: studer_xcom
-  # Different fields that your service action accepts
+  #  config_entry:
+  #    integration: studer_xcom
+  # Fields the service accepts, besides the target
   fields:
     index:
-      name: "Index"
-      description: "The index of the message to retrieve. A side effect of retrieving index 0 is that it also clears the RCC informing that there are new messages."
       required: true
       advanced: false
       example: 0

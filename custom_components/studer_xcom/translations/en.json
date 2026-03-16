@@ -188,5 +188,17 @@
         "parent": "Back to parent menu"
       }
     }
+  },
+  "services": {
+    "get_message": {
+      "name": "Get message",
+      "description": "Retrieve the latest or historic messages from Studer-Innotec devices",
+      "fields": {
+        "index": {
+          "name": "Index",
+          "description": "The index of the message to retrieve; use index 0 for the latest message and subsequent indexes for older messages. A side effect of retrieving index 0 is that it also clears the 'Is message pending' entity'."
+        }
+      }
+    }
   }
 }
