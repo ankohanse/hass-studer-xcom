@@ -6,7 +6,7 @@
 [![buy_me_a_coffee](https://img.shields.io/badge/If%20you%20like%20it-Buy%20me%20a%20coffee-yellow.svg?style=for-the-badge)](https://www.buymeacoffee.com/ankohanse)
 
 
-# Hass-Studer-Xcom
+# Studer-Xcom
 
 [Home Assistant](https://home-assistant.io/) custom component for retrieving sensor information from Studer-Innotec devices.
 This component connects directly over the local network using the Studer xcom protocol.
@@ -188,6 +188,10 @@ After a restart/reboot of the PV system the system will revert to the value from
 Be very carefull in changing params marked as having level Expert, Installer or even Qualified Service Person. If you do not know what the effect of a Studer param change is, then do not change it!
 
 
+# Knowledge base
+Additional information and tips for the Studer-Innotec custom integration can be found in the [Studer-Xcom Wiki](https://github.com/ankohanse/hass-studer-xcom/wiki)
+
+
 # Troubleshooting
 
 Please set your logging for the this custom component to debug during initial setup phase. If everything works well, you are safe to remove the debug logging.
@@ -205,85 +209,3 @@ logger:
 Special thanks to the following people for providing the information this custom integration is based on:
 - [zocker-160](https://github.com/zocker-160/xcom-protocol)
 - [Michael Jeffers](https://community.home-assistant.io/u/JeffersM)
-
-
-# Knowledge base
-
-## Local install
-It is recommended to run Configuration on the local network, i.e. from a computer within the same network as where Home Assistant and the Studer devices are connected to.
-
-If for some reasone you do need to run Configuration remotely (via a Nabu Casa cloud connection), then use the following method:
-- Connect to the remote Home Assistant 
-- Install the [Firefox addon](https://github.com/mincka/ha-addons)
-- Open a firefox web browser window via the addon and connect to homeassistant.local:8123
-- Add and configure the Studer-Innotec integration.
-
-## Naming of Studer devices
-The numbering given to the Xtender (and VarioTrack, VarioString) devices is directly related to the internal address that Studer uses for communication between the RCC and the devices. So XT1 is address 101, to XT9 at address 109. Similar, VT1 is address 301, to VT15 at address 315 and VS1 is address 701 to VS15 on address 715.
-
-This naming is consistent with the naming as used in the Studer Portal on the DataLog and Messages tabs.
-
-When adding a new physical device to an installation, attention should be paid to the position in which the device is added to in the CAN bus chain to the RCC. The devices are numbered, lowest number with the device on the end of the chain and ending with the one closest to the RCC (which may be counter intuitive).
-
-So when inserting a new physical device at the end of the CAN bus chain, that device will get number 1 (XT1, VT1 or VS1) and all existing devices (of the same type) will get their number incremented.
-Instead, it is usually more logical to insert the device as first from the RCC, linking all existing devices to the new device. That will give the device the next number up and leaves the existing devices with their existing number.
-
-## Synchronise Time
-The clock inside the Studer RCC will slowly drift out of sync with actual time. Moreover, it will not automatically switch from and to daylight savings time leading to a one hour offset during half of the year.
-
-Both these issues can easily be resolved by configuring the following automation in Home Assistant; it will correct the time once a day. The chosen trigger time of 3:05am is so that it is after any daylight savings time adjustment.
-
-```
-alias: Studer RCC Sync Time
-description: ""
-triggers:
-  - trigger: time_pattern
-    hours: "3"
-    minutes: "0"
-    seconds: "5"
-conditions: []
-actions:
-  - action: datetime.set_value
-    target:
-      entity_id: datetime.studer_4001_rcc_5002
-    data:
-      datetime: "{{ now() }}"
-mode: restart
-```
-
-## Pause during Studer datalog uploads
-The local Xcom-LAN will do a daily upload of datalogs to the Studer portal servers. This occurs at midnight on the RCC clock and can take up to 45 minutes. 
-
-For larger systems the datalog uploads can fail when the Studer integration requests data updates at that same time (observed in a system with 16 Studer devices). In smaller systems no such conflict is observed.
-
-To prevent problems it is better to configure the Studer integration to not send requests to the Xcom-LAN module during the daily datalog uploads. This requires the following three settings:
-
-1. Disable automatic polling for updates of Studer entities.
-    - Go to Settings -> Integrations -> Studer Innotec
-    - Press the ⋮ and choose System Options
-    - Turn OFF 'Enable polling for changes'
-
-2. Add custom polling for updates of Studer entities.
-    - Go to Settings -> Automations -> Create Automation
-    - Define the new automation according to the following yaml:
-      ```
-      alias: Studer update entities
-      description: ""
-      triggers:
-        - trigger: time_pattern
-          seconds: /30
-      conditions:
-        - condition: time
-          after: "01:00:00"
-          before: "23:59:00"
-      actions:
-        - action: homeassistant.update_entity
-          data:
-            entity_id:
-              - sensor.studer_4001_bsp_7032
-      mode: single
-      ```
-
-      Note that you only need to set one entity_id and it does not matter which studer entity is chosen. A trigger to update one entity will result in update of all Studer entities. The chosen entity_id above is 'sensor.studer_4001_bsp_7032' (BSP State of Charge). Another logical candidate is 'datetime.studer_4001_rcc_5002' (RCC Datetime).
-
-3. Make sure the RCC Datetime is regularly synchronised so that time drift and start or end of Daylight savings will not invalidate the time condition in the automation of step 2. See knowledge base section [Synchronise Time](#synchronise-time).
