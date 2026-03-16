@@ -1,7 +1,6 @@
 # Services for the Studer-Xcom integration
 
 get_message:
-  "description": "Retrieve the latest or historic messages from Studer-Innotec devices"
   # The target allows filtering the scope of the service call
   #target:
   #  config_entry:
