@@ -30,14 +30,16 @@ async def async_setup_services(hass: HomeAssistant, config_entry: ConfigEntry) -
 
     # Setup the 'get_message' service
     async def get_message(call: ServiceCall) -> ServiceResponse:
-        _LOGGER.debug(f"service 'get_message' called with call: {call}")
 
         # Get a Coordinator instance for this config_entry
         coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
         if coordinator is None:
             return None
         
-        return await coordinator.async_get_message(call.data['index'])
+        index = call.data['index']
+        _LOGGER.debug(f"Service 'get_message' called with index: {index}")
+
+        return await coordinator.async_get_message(index)
 
     hass.services.async_register(
          domain = DOMAIN,

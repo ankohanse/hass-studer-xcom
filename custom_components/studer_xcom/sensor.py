@@ -80,8 +80,6 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
     
     def _update_value(self, force:bool=False):
         """Process any changes in value"""
-        
-        _LOGGER.debug(f"sensor::_update_value, id={self.entity_id}, entity_value={self._entity.value} ({type(self._entity.value)}), format={self._entity.format}")
 
         # Transform values according to the metadata params for this status/sensor
         match self._entity.format:
