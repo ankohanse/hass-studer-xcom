@@ -53,8 +53,6 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
 
         # update creation-time only attributes
-        _LOGGER.debug(f"Create entity '{self.entity_id}'")
-        
         self._attr_options = list(entity.options.values())
         
         self._attr_entity_category = self.get_entity_category()

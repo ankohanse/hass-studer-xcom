@@ -58,8 +58,6 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
         self.entity_id: str = ENTITY_ID_FORMAT.format(entity.object_id)
 
         # update creation-time only attributes
-        _LOGGER.debug(f"Create entity '{self.entity_id}'")
-        
         self._attr_entity_category = self.get_entity_category()
         self._attr_device_class = None
        

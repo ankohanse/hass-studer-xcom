@@ -73,8 +73,6 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
 
         # update creation-time only attributes
-        _LOGGER.debug(f"Create entity '{self.entity_id}'")
-        
         self._attr_device_class = None
         
         self._attr_device_info = DeviceInfo( identifiers = {(DOMAIN, entity.device_id)}, )

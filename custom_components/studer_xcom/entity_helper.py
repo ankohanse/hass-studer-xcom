@@ -77,8 +77,6 @@ class StuderEntityHelper:
         valid_unique_ids: list[str] = []
         target_entities: list[StuderEntityData] = [e for e in entity_map.values() if target_platform==self._get_entity_platform(e)]
 
-        _LOGGER.info(f"Add {len(target_entities)} {target_platform} entities for installation '{self._coordinator.config[CONF_PORT]}'")
-
         for entity in target_entities:
             # Create a Sensor, Binary_Sensor, Number, Select, Switch or other entity for this status
             ha_entity = None                

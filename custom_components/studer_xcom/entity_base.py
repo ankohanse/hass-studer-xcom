@@ -156,12 +156,7 @@ class StuderEntity(RestoreEntity):
             self._entity.value = dict_extra.get(ATTR_STORED_VALUE)
             self._entity.valueModified = dict_extra.get(ATTR_STORED_VALUE_MODIFIED)
 
-            # Trace and update using the entity value
-            if self._entity.valueModified is not None:
-                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.valueModified} - modified from {self._entity.value})")
-            else:
-                _LOGGER.debug(f"Restore entity '{self.entity_id}' value to {last_state.state} ({self._entity.value})")
-
+            # Update using the entity value
             self._update_value(force=True)
     
 
