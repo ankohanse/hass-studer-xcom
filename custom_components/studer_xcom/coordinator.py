@@ -459,9 +459,9 @@ class StuderCoordinator(DataUpdateCoordinator):
                 name = f"{PREFIX_NAME} {device.code}",
                 model = f"{family.model} {device.device_model or ''}",
                 manufacturer =  MANUFACTURER,
-                hw_version = device.hw_version,
-                sw_version = device.sw_version,
-                serial_number = device.fid,
+                hw_version = str(device.hw_version) if device.hw_version is not None else None,
+                sw_version = str(device.sw_version) if device.sw_version is not None else None,
+                serial_number = str(device.fid) if device.fid is not None else None,
             )
             valid_ids.append( (DOMAIN, device_id) )
            
