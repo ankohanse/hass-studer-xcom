@@ -994,6 +994,14 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         _LOGGER.debug(f"Step finish - (re)create entry, data:{data}, options:{options}")
         match self._config_mode:
             case CONFIG_MODE.INITIAL:
+                # Use client_info.guid as unique_id for this config flow to avoid the same hub being setup twice
+                # Fallback to alternatives if needed
+                unique_id = self._client_info.guid or f"{self._client_info.ip}:{self._port}"
+                _LOGGER.debug(f"set_unique_id: {unique_id}")
+
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
+    
                 return self.async_create_entry(title=title, data=data, options=options)
             
             case CONFIG_MODE.RECONFIG:
