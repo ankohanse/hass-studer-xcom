@@ -30,8 +30,8 @@ from .entity_base import (
 from .entity_helper import (
     StuderEntityHelperFactory,
 )
-from pystuderxcom import (
-    XcomFormat,
+from pystudernext import (
+    StuderDataType,
 )
 
 
@@ -89,15 +89,15 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        match self._entity.format:
-            case XcomFormat.BOOL:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.BOOL:
                 attr_val = value
                 
-            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
-                attr_val = self._entity.options.values.get(value, value)
+            case StuderDataType.ENUM16 | StuderDataType.ENUM32:
+                attr_val = self._entity.datapoint.enum_options.values.get(value, value)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a select entity")
 
         if attr_val in SWITCH_VALUES_ON:
             attr_is_on = True
@@ -113,9 +113,9 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_flash_state != self._entity.value):
-            self._xcom_flash_state = self._entity.value
-            self._xcom_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
+        if force or (self._studer_flash_state != self._entity.value):
+            self._studer_flash_state = self._entity.value
+            self._studer_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
             changed = True
 
         if force or (self._attr_is_on != attr_is_on):
@@ -132,13 +132,13 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the entity on."""
 
-        match self._entity.format:
-            case XcomFormat.BOOL:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.BOOL:
                 data_val = 1
-            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
-                data_val = next((k for k,v in self._entity.options.items() if k in SWITCH_VALUES_ON or v in SWITCH_VALUES_ON), None)
+            case StuderDataType.ENUM16 | StuderDataType.ENUM32:
+                data_val = next((k for k,v in self._entity.datapoint.enum_options.items() if k in SWITCH_VALUES_ON or v in SWITCH_VALUES_ON), None)
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a select entity")
                 data_val = None
                 
         if data_val is not None:
@@ -153,13 +153,13 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the entity off."""
 
-        match self._entity.format:
-            case XcomFormat.BOOL:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.BOOL:
                 data_val = 0
-            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
-                data_val = next((k for k,v in self._entity.options.items() if k in SWITCH_VALUES_OFF or v in SWITCH_VALUES_OFF), None)
+            case StuderDataType.ENUM16 | StuderDataType.ENUM32:
+                data_val = next((k for k,v in self._entity.datapoint.enum_options.items() if k in SWITCH_VALUES_OFF or v in SWITCH_VALUES_OFF), None)
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a select entity")
                 data_val = None
 
         if data_val is not None:

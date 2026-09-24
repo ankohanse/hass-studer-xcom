@@ -25,8 +25,8 @@ from .entity_base import (
 from .entity_helper import (
     StuderEntityHelperFactory,
 )
-from pystuderxcom import (
-    XcomFormat
+from pystudernext import (
+    StuderDataType,
 )
 
 
@@ -84,8 +84,8 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
         
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        match self._entity.format:
-            case XcomFormat.INT32:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
                 # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
                 # TimeEntity expects time object and can only be between 00:00 and 23:59
                 # We sneakily replace value 1440 (24:00) into 23:59
@@ -97,15 +97,15 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
                     attr_val = time(int(value // 60), int(value % 60)).replace(tzinfo=self._coordinator.time_zone)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a time entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a time entity")
                 return
         
         # update value if it has changed
         changed = False
         
-        if force or (self._xcom_flash_state != self._entity.value):
-            self._xcom_flash_state = self._entity.value
-            self._xcom_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
+        if force or (self._studer_flash_state != self._entity.value):
+            self._studer_flash_state = self._entity.value
+            self._studer_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
             changed = True
         
         if force or (self._attr_native_value != attr_val):
@@ -121,8 +121,8 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
     async def async_set_value(self, value: time) -> None:
         """Change the date/time"""
         
-        match self._entity.format:
-            case XcomFormat.INT32:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.INT32:
                 # TimeEntity is a time object and can only be between 00:00 and 23:59
                 # Studer entity value is minutes since midnight with values between 0 (00:00) and 1440 (24:00).
                 
@@ -136,7 +136,7 @@ class StuderTime(CoordinatorEntity, TimeEntity, StuderEntity):
                     trace_value = "24:00"
 
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a time entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a time entity")
                 return
         
         _LOGGER.debug(f"Set {self.entity_id} to {trace_value} ({entity_value})")

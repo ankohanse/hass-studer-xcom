@@ -31,8 +31,8 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 
-from pystuderxcom import (
-    XcomFormat,
+from pystudernext import (
+    StuderDataType,
 )
 
 
@@ -96,8 +96,8 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
     def _update_value(self, force:bool=False):
         """Process any changes in value"""
 
-        match self._entity.format:
-            case XcomFormat.BOOL:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.BOOL:
                 if self._entity.value == 1:
                     is_on = True
                 elif self._entity.value == 0:
@@ -105,14 +105,14 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
                 else:
                     is_on = None
 
-            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
+            case StuderDataType.ENUM16 | StuderDataType.ENUM32:
                 # sanity check
-                if len(self._entity.options or []) != 2:
-                    _LOGGER.error(f"Unexpected entity options ({self._entity.options}) for a binary sensor")
+                if len(self._entity.datapoint.enum_options or []) != 2:
+                    _LOGGER.error(f"Unexpected entity options ({self._entity.datapoint.enum_options}) for a binary sensor")
                     return
                 
                 # Lookup the option string for the value and otherwise return the value itself
-                val = self._entity.options.get(str(self._entity.value), self._entity.value)
+                val = self._entity.datapoint.enum_options.get(str(self._entity.value), self._entity.value)
                 if val in BINARY_SENSOR_VALUES_ON:
                     is_on = True
                 elif val in BINARY_SENSOR_VALUES_OFF:
@@ -121,14 +121,14 @@ class StuderBinarySensor(CoordinatorEntity, BinarySensorEntity, StuderEntity):
                     is_on = None
                 
             case _:
-                _LOGGER.warning(f"Unexpected entity format ({self._entity.format}) for a binary sensor")
+                _LOGGER.warning(f"Unexpected entity data-type ({self._entity.datapoint.data_type}) for a binary sensor")
                 return
             
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_state != self._entity.value):
-            self._xcom_state = self._entity.value
+        if force or (self._studer_state != self._entity.value):
+            self._studer_state = self._entity.value
             changed = True
         
         if force or (self._attr_is_on != is_on):

@@ -7,7 +7,7 @@ import re
 
 from collections import namedtuple
 from datetime import datetime, timedelta, timezone, tzinfo
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.components.diagnostics import REDACTED
 from homeassistant.components.diagnostics.util import async_redact_data
@@ -29,43 +29,70 @@ from homeassistant.const import (
 )
 
 from .const import (
+    CONF_CLIENT_INFO,
+    CONF_GATEWAY_INFO,
+    CONF_NEXT_GW_HOST,
+    CONF_NEXT_GW_PORT,
+    CONF_PRODUCT,
+    CONF_XCOM_PORT,
+    CONF_XCOM_VOLTAGE_AC,
+    CONF_XCOM_VOLTAGE_DC,
+    DEFAULT_NEXT_GW_HOST,
+    DEFAULT_NEXT_GW_PORT,
+    DEFAULT_PRODUCT,
+    DEFAULT_XCOM_VOLTAGE_AC,
+    DEFAULT_XCOM_VOLTAGE_DC,
     DOMAIN,
     NAME,
     MANUFACTURER,
     COORDINATOR,
     PREFIX_ID,
     PREFIX_NAME,
+    PRODUCTS,
     CONF_VOLTAGE,
-    CONF_VOLTAGE_AC,
-    CONF_VOLTAGE_DC,
+    CONF_XCOM_VOLTAGE_AC,
+    CONF_XCOM_VOLTAGE_DC,
     CONF_POLLING_INTERVAL,
-    DEFAULT_VOLTAGE_AC,
-    DEFAULT_VOLTAGE_DC,
-    DEFAULT_PORT,
+    DEFAULT_XCOM_VOLTAGE_AC,
+    DEFAULT_XCOM_VOLTAGE_DC,
+    DEFAULT_XCOM_PORT,
     DEFAULT_POLLING_INTERVAL,
     REQ_RETRIES,
     REQ_TIMEOUT,
     CACHE_WRITE_PERIOD,
 )
+from pystudernext import (  # pystudernext and pystuderxcom both contain exactly the same shared studer classes
+    AsyncStuderApi,
+    StuderDataset,
+    StuderDatapoint,
+    StuderDeviceFamilies,
+    StuderDeviceFamily,
+    StuderDiscoveredGateway,
+    StuderValueItem,
+    StuderValueSet,
+)
 from pystuderxcom import (
     AsyncXcomApiTcp,
-    AsyncXcomFactory,
     XcomApiTcpMode,
-    XcomApiWriteException,
-    XcomApiReadException,
+    #AJH XcomApiConnectException,
     XcomApiTimeoutException,
+    XcomApiReadException,
+    XcomApiWriteException,
     XcomApiResponseIsError,
     XcomApiUnpackException,
-    XcomDiscoveredClient,
-    XcomDiscoveredDevice,
     XcomDataset,
     XcomDatapoint,
-    XcomDatapointUnknownException,
-    XcomDeviceFamily,
     XcomDeviceFamilies,
-    XcomDeviceFamilyUnknownException,
-    XcomValues,
-    XcomValuesItem,
+)
+from pystudernext import (
+    AsyncNextApi,
+    NextApiConnectException,
+    NextApiTimeoutException,
+    NextApiReadException,
+    NextApiUpdateException,
+    NextApiUnpackException,
+    NextDataset,
+    NextDeviceFamilies,
 )
 
 
@@ -75,123 +102,130 @@ MODIFIED_PARAMS = "ModifiedParams"
 MODIFIED_PARAMS_TS = "ModifiedParamsTs"
 
 
-class StuderClientConfig(XcomDiscoveredClient):
-    def __init__(self, ip, guid):
-        # From XcomDiscoveredClient
-        self.ip = ip
+class StuderGatewayConfig(StuderDiscoveredGateway):
+    def __init__(self, host, guid):
+        # From StuderDiscoveredGateway
+        self.host = host
         self.guid = guid
 
     @staticmethod
     def from_dict(d: dict[str,Any]):
-        return StuderClientConfig(
-            d.get("ip", None),
+        return StuderGatewayConfig(
+            d.get("host", None) or d.get("ip", None),
             d.get("guid", None),
         )
 
     def as_dict(self) -> dict[str, Any]:
         """Return dictionary version of this client info."""
         return {
-            "ip": self.ip,
+            "host": self.host,
             "guid": self.guid,
         }
     
     def __str__(self) -> str:
-        return f"StuderClientConfig(ip={self.ip}, guid={self.guid})"
+        return f"StuderGatewayConfig(ip={self.ip}, guid={self.guid})"
 
     def __repr__(self) -> str:
         return self.__str__()
 
 
-class StuderDeviceConfig(XcomDiscoveredDevice):
-    def __init__(self, code, addr, family_id, family_model, device_model, hw_version, sw_version, fid, numbers):
-        # From XcomDiscoveredDevice
+class StuderDeviceConfig():
+    def __init__(self, product, code, address=None, slave=None, family_id=None, family_model=None, device_model=None, serial=None, hw_version=None, sw_version=None, om_version=None, numbers=[]):
+        self.product = product
         self.code = code
-        self.addr = addr
+        self.address_or_slave = address or slave    # addr is used for Xcom and slave for Next, but are essentialy the same
         self.family_id = family_id
         self.family_model = family_model
         self.device_model = device_model
+        self.serial = serial
         self.hw_version = hw_version
         self.sw_version = sw_version
-        self.fid = fid
-
-        # For StuderDeviceConfig
+        self.om_version = om_version
         self.numbers = numbers
 
+    @property
+    def slave(self):
+        return self.address_or_slave
+
+    @property
+    def address(self):
+        return self.address_or_slave
+    
     @staticmethod
     def match(a, b):
-        if not isinstance(a, XcomDiscoveredDevice) or not isinstance(b, XcomDiscoveredDevice):
+        if not isinstance(a, StuderDeviceConfig) or not isinstance(b, StuderDeviceConfig):
             return False
-        
-        # Either match code or match addr and family_id
+
+        if a.product != b.product:
+            return False
+
+        # Either match code or match addr/slave and family_id
         if a.code == b.code:
             return True
-        if a.addr == b.addr and a.family_id == b.family_id:
+        if a.address_or_slave == b.address_or_slave and a.family_id == b.family_id:
             return True
-        
+                
         return False
 
     @staticmethod
     def from_dict(d: dict[str,Any]):
         return StuderDeviceConfig(
-            d["code"],
-            d["address"],
-            d["family_id"],
-            d["family_model"],
-            d["device_model"],
-            d["hw_version"],
-            d["sw_version"],
-            d["fid"],
-            d["numbers"],
+            product = d.get("product") or PRODUCTS.XCOM,
+            code = d.get("code"),
+            address = d.get("address"),
+            slave = d.get("slave"),
+            family_id = d.get("family_id"),
+            family_model = d.get("family_model"),
+            device_model = d.get("device_model"),
+            serial = d.get("serial") or d.get("fid"),
+            hw_version = d.get("hw_version"),
+            sw_version = d.get("sw_version"),
+            om_version = d.get("om_version"),
+            numbers = d.get("numbers"),
         )
 
     def as_dict(self) -> dict[str, Any]:
         """Return dictionary version of this device config."""
         return {
+            "product": self.product,
             "code": self.code,
-            "address": self.addr,
+            "address": self.address if self.product in [PRODUCTS.XCOM] else None,
+            "slave": self.slave if self.product in [PRODUCTS.NEXT] else None,
             "family_id": self.family_id,
             "family_model": self.family_model,
             "device_model": self.device_model,
+            "serial": self.serial,
             "hw_version": self.hw_version,
             "sw_version": self.sw_version,
-            "fid": self.fid,
+            "om_version": self.om_version,
             "numbers": self.numbers,
         }
     
     def __str__(self) -> str:
-        return f"StuderDeviceConfig(code={self.code}, family_id={self.family_id}, address={self.addr}, numbers={self.numbers})"
+        match self.product:
+            case PRODUCTS.XCOM:
+                return f"StuderDeviceConfig(product={self.product}, code={self.code}, family_id={self.family_id}, address={self.address}, numbers={self.numbers})"
+            case PRODUCTS.NEXT:
+                return f"StuderDeviceConfig(product={self.product}, code={self.code}, family_id={self.family_id}, slave={self.slave}, numbers={self.numbers})"
 
     def __repr__(self) -> str:
         return self.__str__()
 
 
-class StuderEntityData(XcomDatapoint):
-    def __init__(self, param, object_id, unique_id, device_id, device_code, device_addr):
-        # from XcomDatapoint
-        self.family_id = param.family_id
-        self.level = param.level
-        self.parent = param.parent
-        self.nr = param.nr
-        self.name = param.name
-        self.abbr = param.abbr
-        self.unit = param.unit
-        self.format = param.format
-        self.default = param.default
-        self.min = param.min
-        self.max = param.max
-        self.inc = param.inc
-        self.options = param.options
+class StuderEntityData():
+    def __init__(self, datapoint: StuderDatapoint, object_id: str, unique_id: str, device_id: str, device_code: str, device_address: int):
 
-        # for StuderEntityData
-        self.object_id = object_id
-        self.unique_id = unique_id
-        self.weight = 1
-        self.value = None
-        self.valueModified = None
+        self.datapoint: StuderDatapoint = datapoint
 
-        self.device_id = device_id
-        self.device_code = device_code
-        self.device_addr = device_addr
+        self.object_id: str = object_id
+        self.unique_id:str = unique_id
+        self.weight: float = 1
+        self.value: Any = None
+        self.valueModified: bool = None
+
+        self.device_id: str = device_id
+        self.device_code: str = device_code
+        self.device_address: int = device_address
 
 
 class StuderCoordinatorFactory:
@@ -235,7 +269,7 @@ class StuderCoordinatorFactory:
 
 
     @staticmethod
-    async def async_create_temp(voltage_ac, voltage_dc, port):
+    async def async_create_temp(product, xcom_voltage_ac=None, xcom_voltage_dc=None, xcom_port=None, next_gw_host=None, next_gw_port=None):
         """
         Get temporary Coordinator for a given port.
         This coordinator will only provide limited functionality
@@ -251,9 +285,12 @@ class StuderCoordinatorFactory:
             
         # Mimick properties from the config_entry
         config: dict[str,Any] = {
-            CONF_VOLTAGE_AC: voltage_ac,
-            CONF_VOLTAGE_DC: voltage_dc,
-            CONF_PORT: port,
+            CONF_PRODUCT: product,
+            CONF_XCOM_VOLTAGE_AC: xcom_voltage_ac,
+            CONF_XCOM_VOLTAGE_DC: xcom_voltage_dc,
+            CONF_XCOM_PORT: xcom_port,
+            CONF_NEXT_GW_HOST: next_gw_host,
+            CONF_NEXT_GW_PORT: next_gw_port
         }
         options: dict[str,Any] = {
             CONF_DEVICES: [],
@@ -262,13 +299,20 @@ class StuderCoordinatorFactory:
         # Already have a coordinator for this port and voltage?
         coordinator = None
         for c in hass.data[DOMAIN][COORDINATOR].values():
-            p  = c.config.get(CONF_PORT, DEFAULT_PORT)
-            ac = c.config.get(CONF_VOLTAGE_AC, None) or c.config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE_AC)
-            dc = c.config.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
+            p = c.config.get(CONF_PRODUCT, DEFAULT_PRODUCT)
+            xp  = c.config.get(CONF_XCOM_PORT, DEFAULT_XCOM_PORT)
+            xac = c.config.get(CONF_XCOM_VOLTAGE_AC, None) or c.config.get(CONF_VOLTAGE, DEFAULT_XCOM_VOLTAGE_AC)
+            xdc = c.config.get(CONF_XCOM_VOLTAGE_DC, DEFAULT_XCOM_VOLTAGE_DC)
+            nh = c.config.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
+            np = c.config.get(CONF_NEXT_GW_PORT, DEFAULT_NEXT_GW_PORT)
 
-            if p==port and ac==voltage_ac and dc==voltage_dc:
-                coordinator = c
-                break
+            if p==product:
+                if p in [PRODUCTS.XCOM] and xp==xcom_port and xac==xcom_voltage_ac and xdc==xcom_voltage_dc:
+                    coordinator = c
+                    break
+                if p in [PRODUCTS.NEXT] and nh==next_gw_host and np==next_gw_port:
+                    coordinator = c
+                    break            
 
         if not coordinator:
             # Get a temporary instance of our coordinator. This is unique to this port and voltage
@@ -300,9 +344,15 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._options: dict[str,Any] = options
         self._is_temp = is_temp
 
-        self._voltage_ac: str = config.get(CONF_VOLTAGE_AC, config.get(CONF_VOLTAGE, DEFAULT_VOLTAGE_AC))
-        self._voltage_dc: str = config.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
-        self._listen_port: int = config.get(CONF_PORT, DEFAULT_PORT)
+        self._product: PRODUCTS = config.get(CONF_PRODUCT, DEFAULT_PRODUCT)
+        self._xcom_voltage_ac: str = config.get(CONF_XCOM_VOLTAGE_AC, config.get(CONF_VOLTAGE, DEFAULT_XCOM_VOLTAGE_AC))
+        self._xcom_voltage_dc: str = config.get(CONF_XCOM_VOLTAGE_DC, DEFAULT_XCOM_VOLTAGE_DC)
+        self._xcom_listen_port: int = config.get(CONF_XCOM_PORT, config.get(CONF_PORT, DEFAULT_XCOM_PORT))
+        self._next_gw_host: str = config.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
+        self._next_gw_port: str = config.get(CONF_NEXT_GW_PORT, DEFAULT_NEXT_GW_PORT)
+
+        gateway_info_dict = config.get(CONF_GATEWAY_INFO, None) or config.get(CONF_CLIENT_INFO, {})
+        self._gateway_info = StuderGatewayConfig.from_dict(gateway_info_dict)
 
         # Get devices from options (with fallback to config for backwards compatibility)
         devices_data = options.get(CONF_DEVICES, None) \
@@ -310,12 +360,22 @@ class StuderCoordinator(DataUpdateCoordinator):
         self._devices: list[StuderDeviceConfig] = [StuderDeviceConfig.from_dict(d) for d in devices_data]
 
         # Api
-        self._api = AsyncXcomApiTcp(mode=XcomApiTcpMode.SERVER, listen_port=self._listen_port)
+        match self._product:
+            case PRODUCTS.XCOM:
+                self._api: AsyncStuderApi = AsyncXcomApiTcp(mode=XcomApiTcpMode.SERVER, listen_port=self._xcom_listen_port)
+                self._object_id_base = StuderCoordinator.create_id(self._xcom_listen_port) # Base for object_id
+                self._unique_id_base = StuderCoordinator.create_id(self._xcom_listen_port) # Base for internal unique_id (todo: set to client guid)
+                self._device_id_base = StuderCoordinator.create_id(self._xcom_listen_port) # Base for device_id (todo: set to client guid)
+                store_key = self._xcom_listen_port
+
+            case PRODUCTS.NEXT:
+                self._api: AsyncStuderApi = AsyncNextApi(host=self._next_gw_host, port=self._next_gw_port)
+                self._object_id_base = StuderCoordinator.create_id(self._next_gw_host)      # Base for object_id
+                self._unique_id_base = StuderCoordinator.create_id(self._gateway_info.guid) # Base for internal unique_id
+                self._device_id_base = StuderCoordinator.create_id(self._gateway_info.guid) # Base for device_id
+                store_key = self._next_gw_host
 
         # Id handling
-        self._object_id_base = StuderCoordinator.create_id(self._listen_port) # Base for object_id
-        self._unique_id_base = StuderCoordinator.create_id(self._listen_port) # Base for internal unique_id (todo: set to client guid)
-        self._device_id_base = StuderCoordinator.create_id(self._listen_port) # Base for device_id (todo: set to client guid)
         self._valid_unique_ids: dict[Platform, list[str]] = {}
         self._valid_device_ids: list[tuple[str,str]] = []
 
@@ -326,7 +386,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         # Cached data to persist updated params saved into device RAM
         self._hass = hass
-        self._store_key = StuderCoordinator.create_id(self._listen_port)
+        self._store_key = StuderCoordinator.create_id(store_key)
         self._store = StuderCoordinatorStore(hass, self._store_key)
         self._cache = None
         self._cache_last_write = datetime.now()
@@ -359,7 +419,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         # Stop our Api
         await self._api.stop()
 
-    
+
     @property
     def is_connected(self) -> bool:
         return self._api.connected
@@ -378,7 +438,12 @@ class StuderCoordinator(DataUpdateCoordinator):
     @property
     def is_temp(self) -> bool:
         return self._is_temp
-    
+
+
+    @property
+    def product(self) -> PRODUCTS:
+        return self._product
+
 
     @property
     def time_zone(self) -> tzinfo | None:
@@ -393,21 +458,33 @@ class StuderCoordinator(DataUpdateCoordinator):
 
         entity_map: dict[str,StuderEntityData] = {}
 
-        # No need to load XcomDataset from file if no device numbers need resolving
+        # No need to load StuderDataset from file if no device numbers need resolving
         if not self._devices:
             return entity_map
 
-        # Load XcomDataset from file
-        dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
+        match self._product:
+            case PRODUCTS.XCOM:
+                # Load XcomDataset from file
+                dataset = await XcomDataset.async_get_instance(self._xcom_voltage_ac, self._xcom_voltage_dc)
+                families = await XcomDeviceFamilies.async_get_instance()
+
+            case PRODUCTS.NEXT:
+                # Load NextDataset from file(s)
+                dataset = await NextDataset.async_get_instance()
+                families = await NextDeviceFamilies.async_get_instance()
+
+            case _:
+                _LOGGER.warning(f"Unknown product '{self._product}' found during creation of entity map")
 
         # Resolve all numbers for each device
         for device in self._devices:
-            family = XcomDeviceFamilies.get_by_id(device.family_id)
+            family = families.get_by_id(device.family_id)
+            family_id_for_nr = family.id_for_nr if hasattr(family, 'id_for_nr') else family.id
 
             for nr in device.numbers:
                 try:
-                    param = dataset.get_by_nr(nr, family.id_for_nr)
-                    entity = self._create_entity(param, family, device)
+                    datapoint = dataset.get_by_nr(nr, family_id_for_nr)
+                    entity = self._create_entity(datapoint, family, device)
                     if entity:
                         entity_map[entity.object_id] = entity
 
@@ -417,20 +494,19 @@ class StuderCoordinator(DataUpdateCoordinator):
         return entity_map
     
 
-    def _create_entity(self, param: XcomDatapoint, family: XcomDeviceFamily, device: StuderDeviceConfig) -> StuderEntityData | None:
-    
+    def _create_entity(self, datapoint: StuderDatapoint, family: StuderDeviceFamily, device: StuderDeviceConfig) -> StuderEntityData | None:
         try:
             # Store all properties for easy lookup by entities
             entity = StuderEntityData(
-                param = param,
+                datapoint = datapoint,
 
-                object_id = StuderCoordinator.create_id(PREFIX_ID, self._object_id_base, device.code, param.nr),
-                unique_id = StuderCoordinator.create_id(PREFIX_ID, self._unique_id_base, device.code, param.nr),
+                object_id = StuderCoordinator.create_id(PREFIX_ID, self._object_id_base, device.code, datapoint.nr),
+                unique_id = StuderCoordinator.create_id(PREFIX_ID, self._unique_id_base, device.code, datapoint.nr),
 
                 # Device associated with this entity
                 device_id = StuderCoordinator.create_id(PREFIX_ID, self._device_id_base, device.code),
                 device_code = device.code,
-                device_addr = device.addr,
+                device_address = device.address,
             )
             return entity
         
@@ -448,20 +524,18 @@ class StuderCoordinator(DataUpdateCoordinator):
         valid_ids: list[tuple[str,str]] = []
 
         for device in self._devices:
-            family = XcomDeviceFamilies.get_by_id(device.family_id)
             device_id = StuderCoordinator.create_id(PREFIX_ID, self._device_id_base, device.code)
-
             _LOGGER.debug(f"Create device {device_id}")
 
             dr.async_get_or_create(
                 config_entry_id = config_entry.entry_id,
                 identifiers = {(DOMAIN, device_id)},
                 name = f"{PREFIX_NAME} {device.code}",
-                model = f"{family.model} {device.device_model or ''}",
+                model = f"{device.family_model} {device.device_model or ''}",
                 manufacturer =  MANUFACTURER,
                 hw_version = str(device.hw_version) if device.hw_version is not None else None,
                 sw_version = str(device.sw_version) if device.sw_version is not None else None,
-                serial_number = str(device.fid) if device.fid is not None else None,
+                serial_number = str(device.serial) if device.serial is not None else None,
             )
             valid_ids.append( (DOMAIN, device_id) )
            
@@ -532,19 +606,18 @@ class StuderCoordinator(DataUpdateCoordinator):
 
     async def _async_request_all_data(self):
         """
-        Send out requests to the remote Xcom client for each configured parameter or infos number.
+        Send out requests to the remote gateway for each configured parameter or infos number.
         """
-        
         diag_key = f"RequestValues"
         try:
-            request_items: list[XcomValuesItem] = [ XcomValuesItem(entity, code=entity.device_code) for entity in self._entity_map.values() ]
-            request_data = XcomValues(items = request_items)
+            request_items: list[StuderValueItem] = [ StuderValueItem(datapoint=entity.datapoint, device=entity.device_code) for entity in self._entity_map.values() ]
+            request_data = StuderValueSet(items = request_items)
 
             response_data = await self._api.request_values(request_data, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
 
             for item in response_data.items:
                 # Find entity matching to this response item
-                entity = next( (e for e in self._entity_map.values() if e.nr == item.datapoint.nr and e.device_code == item.code), None)
+                entity = next( (e for e in self._entity_map.values() if e.datapoint.nr == item.datapoint.nr and e.device_code == item.code), None)
 
                 if entity is not None and item.value is not None:
                     self._entity_map[entity.object_id].value = item.value
@@ -554,21 +627,18 @@ class StuderCoordinator(DataUpdateCoordinator):
             await self._addDiagnostic(diag_key, True)
 
         except Exception as e:
-            if e is not XcomApiTimeoutException:
-                _LOGGER.warning(f"Failed to request value {entity.device_code} {entity.nr} from Xcom client: {e}")
+            if not isinstance(e, (XcomApiTimeoutException, NextApiTimeoutException)):
+                _LOGGER.warning(f"Failed to request values from gateway: {e}")
             await self._addDiagnostic(diag_key, False, e)
 
     
     async def async_modify_data(self, entity: StuderEntityData, value, set_modified:bool=True):
 
-        diag_key = f"UpdateValue {entity.device_code} {entity.level}"
+        diag_key = f"UpdateValue {entity.device_code} {entity.datapoint.userlevel_w}"
         try:
-            param = entity
-            addr = entity.device_addr
-
-            result = await self._api.update_value(param, value, dstAddr=addr)
+            result = await self._api.update_value(entity.datapoint, value, device=entity.device_address)
             if result==True:
-                _LOGGER.info(f"Successfully updated {entity.device_code} {entity.nr} to value {value}")
+                _LOGGER.info(f"Successfully updated {entity.device_code} {entity.datapoint.nr} to value {value}")
 
                 if set_modified and entity.value != value:
                     # Changed from its original (flash) value; remember as a modified_param
@@ -583,7 +653,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 return True
             
         except Exception as e:
-            _LOGGER.warning(f"Failed to update value {entity.device_code} {entity.nr} via Xcom client: {e}")
+            _LOGGER.warning(f"Failed to update value {entity.device_code} {entity.datapoint.nr}: {e}")
             await self._addDiagnostic(diag_key, False, e)
 
         return False
@@ -591,6 +661,15 @@ class StuderCoordinator(DataUpdateCoordinator):
 
     async def async_get_message(self, index:int) -> dict:
         """"""
+        match self._product:
+            case PRODUCTS.XCOM:
+                families = await XcomDeviceFamilies.async_get_instance()
+
+            case PRODUCTS.NEXT:
+                raise NotImplementedError(f"async_get_message is not implemented for product '{self._product}'")
+            case _:
+                raise ValueError(f"Unexpected value for 'product': '{self._product}'")
+
         diag_key = f"GetMessage"
         try:
             result = await self._api.request_message(index, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
@@ -598,10 +677,10 @@ class StuderCoordinator(DataUpdateCoordinator):
                 # Lookup code from addr within the available devices
                 code = None
                 for d in self._devices:
-                    if (code := XcomDeviceFamilies.get_code_by_addr(result.source_address, d.family_id)) is not None:
+                    if (code := families.get_code_by_addr(result.source_address, d.family_id)) is not None:
                         break
 
-                # Convert from XcomMessage to dict
+                # Convert from StuderMessage to dict
                 response = {
                     "message": result.message_string,
                     "source": code,
@@ -613,7 +692,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 return response
             
         except Exception as e:
-            _LOGGER.warning(f"Failed to get message {index} via Xcom client: {e}")
+            _LOGGER.warning(f"Failed to get message {index}: {e}")
             await self._addDiagnostic(diag_key, False, e)
 
         return { "error": f"No message found for index {index}" }
@@ -716,11 +795,17 @@ class StuderCoordinator(DataUpdateCoordinator):
             diag_data["counters"]["success"] += 1
         else:
             if not e:                          diag_data["counters"]["fail_other"] += 1
-            elif e is XcomApiWriteException:   diag_data["counters"]["fail_write"] += 1
-            elif e is XcomApiReadException:    diag_data["counters"]["fail_read"] += 1
+            #AJH elif e is XcomApiConnectException: diag_data["counters"]["fail_connect"] += 1
+            elif e is NextApiConnectException: diag_data["counters"]["fail_connect"] += 1
             elif e is XcomApiTimeoutException: diag_data["counters"]["fail_timeout"] += 1
+            elif e is NextApiTimeoutException: diag_data["counters"]["fail_timeout"] += 1
+            elif e is XcomApiReadException:    diag_data["counters"]["fail_read"] += 1
+            elif e is NextApiReadException:    diag_data["counters"]["fail_read"] += 1
+            elif e is XcomApiWriteException:   diag_data["counters"]["fail_write"] += 1
+            elif e is NextApiUpdateException:  diag_data["counters"]["fail_write"] += 1
             elif e is XcomApiResponseIsError:  diag_data["counters"]["fail_error"] += 1
             elif e is XcomApiUnpackException:  diag_data["counters"]["fail_unpack"] += 1
+            elif e is NextApiUnpackException:     diag_data["counters"]["fail_unpack"] += 1
             else:                              diag_data["counters"]["fail_other"] += 1
 
             if e:
@@ -759,9 +844,9 @@ class StuderCoordinator(DataUpdateCoordinator):
         },
     
     
-    def addr_to_code(self, addr):
+    def address_to_code(self, address):
         """Convert a device address into a more user friendly device code"""
-        return next( (d.code for d in self._devices if d.addr == addr), addr)
+        return next( (d.code for d in self._devices if d.address == address), address)
     
 
     def timestamp_to_datetime(self, ts):

@@ -26,10 +26,10 @@ from .coordinator import (
     StuderCoordinator,
     StuderEntityData,
 )
-from pystuderxcom import (
-    XcomFormat,
-    XcomLevel,
-    XcomCategory,
+from pystudernext import (
+    StuderAccess,
+    StuderDataType,
+    StuderUserLevel,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -97,69 +97,89 @@ class StuderEntityHelper:
             async_add_entities(ha_entities)
     
     
-    def _get_entity_platform(self, entity):
+    def _get_entity_platform(self, entity: StuderEntityData):
         """
         Determine what platform an entry should be added into
         """
         
-        # Is it a switch/select/number/time config or control entity? 
-        if entity.category == XcomCategory.PARAMETER:
-            if entity.level==XcomLevel.VO:
-                return Platform.SENSOR
+        # Is it a button entity and do we have enough rights to write?
+        if entity.datapoint.access in [StuderAccess.WRITE] and \
+           entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
             
-            match entity.format:
-                case XcomFormat.BOOL:
+            match entity.datapoint.data_type:
+                case StuderDataType.SIGNAL:
+                    return Platform.BUTTON
+                
+                case _:
+                    _LOGGER.warning(f"Unexpected entity format ({entity.datapoint.data_type}) in _get_entity_platform")
+                    return None
+
+        # Is it a button/switch/select/number/time entity and do we have enough rights to read and write? 
+        elif entity.datapoint.access in [StuderAccess.READ_WRITE] and \
+             entity.datapoint.userlevel_r <= StuderUserLevel.EXPERT and \
+             entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
+
+            match entity.datapoint.data_type:
+                case StuderDataType.BOOL:
                     return Platform.SWITCH
                 
-                case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
+                case StuderDataType.ENUM16 | StuderDataType.ENUM32:
                     # With exactly 2 possible values that are of ON/OFF type it becomes a switch
-                    if len(entity.options or []) == 2:
-                        if all(k in SWITCH_VALUES_ALL and v in SWITCH_VALUES_ALL for k,v in entity.options.items()):
+                    if len(entity.datapoint.enum_options or []) == 2:
+                        if all(k in SWITCH_VALUES_ALL and v in SWITCH_VALUES_ALL for k,v in entity.datapoint.enum_options.items()):
                             return Platform.SWITCH
                     
                     # With more values or not of ON/OFF type it becomes a Select
                     return Platform.SELECT
                 
-                case XcomFormat.INT32:
-                    if entity.default=="S" or entity.min=="S" or entity.max=="S":
+                case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
+                    if entity.datapoint.default=="S" or entity.datapoint.min=="S" or entity.datapoint.max=="S":
                         return Platform.BUTTON
-                    elif entity.unit == "Seconds":
+                    elif entity.datapoint.unit == "Seconds":
                         return Platform.DATETIME
-                    elif entity.unit == "Minutes":
+                    elif entity.datapoint.unit == "Minutes":
                         return Platform.TIME
                     else:
                         return Platform.NUMBER
 
-                case XcomFormat.FLOAT:
+                case StuderDataType.FLOAT32 | StuderDataType.FLOAT64:
                     return Platform.NUMBER
                 
                 case _:
-                    _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
+                    _LOGGER.warning(f"Unexpected entity format ({entity.datapoint.data_type}) in _get_entity_platform")
                     return None
-                
-        elif entity.category == XcomCategory.INFO: 
-            match entity.format:
-                case XcomFormat.BOOL:
+
+        # Is it a (binary) sensor entity, and do we have enough rights to read?
+        # Also handles fallthrough from previous access tests.
+        elif entity.datapoint.access in [StuderAccess.READ, StuderAccess.READ_WRITE] and \
+             entity.datapoint.userlevel_r <= StuderUserLevel.EXPERT:
+
+            match entity.datapoint.data_type:
+                case StuderDataType.BOOL:
                     return Platform.BINARY_SENSOR
                 
-                case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
+                case StuderDataType.ENUM16 | StuderDataType.ENUM32:
                     # With exactly 2 possible values that are of ON/OFF type it becomes a binary sensor
-                    if len(entity.options or []) == 2:
-                        if all(k in BINARY_SENSOR_VALUES_ALL and v in BINARY_SENSOR_VALUES_ALL for k,v in entity.options.items()):
+                    if len(entity.datapoint.enum_options or []) == 2:
+                        if all(k in BINARY_SENSOR_VALUES_ALL and v in BINARY_SENSOR_VALUES_ALL for k,v in entity.datapoint.enum_options.items()):
                             return Platform.BINARY_SENSOR
                     
                     # With more values or not of ON/OFF type it becomes a general sensor
                     return Platform.SENSOR
                 
-                case XcomFormat.FLOAT | XcomFormat.INT32 | XcomFormat.STRING:
+                case StuderDataType.FLOAT32 | StuderDataType.FLOAT64 | \
+                     StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
+                     StuderDataType.STRING:
+
+                    # General sensor
                     return Platform.SENSOR
                 
                 case _:
-                    _LOGGER.warning(f"Unexpected entity format ({entity.format}) in _get_entity_platform")
-                    return None
-                
+                    _LOGGER.warning(f"Unexpected entity format ({entity.datapoint.data_type}) in _get_entity_platform")
+                    return None               
+        
         else:
-            _LOGGER.warning(f"Unexpected entity category ({entity.category}) in _get_entity_platform")
+            _LOGGER.warning(f"Unexpected entity access ({entity.datapoint.access}) in _get_entity_platform")
             return None
     
 

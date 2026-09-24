@@ -24,8 +24,8 @@ from .entity_base import (
 from .entity_helper import (
     StuderEntityHelperFactory,
 )
-from pystuderxcom import (
-    XcomFormat,
+from pystudernext import (
+    StuderDataType,
 )
 
 
@@ -80,8 +80,8 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         """Process any changes in value"""
 
         # Transform values according to the metadata params for this status/sensor
-        match self._entity.format:
-            case XcomFormat.FLOAT:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.FLOAT32 | StuderDataType.FLOAT64:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
@@ -89,21 +89,21 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 attr_val = round(float(self._entity.value) * weight, attr_digits) if self._entity.value is not None and isinstance(self._entity.value,(float,int)) and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
 
-            case XcomFormat.INT32:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
                 attr_val = int(self._entity.value) * weight if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
                     
-            case XcomFormat.SHORT_ENUM | XcomFormat.LONG_ENUM:
+            case StuderDataType.ENUM16 | StuderDataType.ENUM32:
                 # Lookup the dict string for the value and otherwise return the value itself
                 weight = None
                 attr_precision = None
-                attr_val = self._entity.options.get(str(self._entity.value), self._entity.value) if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
+                attr_val = self._entity.datapoint.enum_options.get(str(self._entity.value), self._entity.value) if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
                 attr_unit = None
 
-            case XcomFormat.STRING:
+            case StuderDataType.STRING:
                 # return the value itself
                 weight = None
                 attr_precision = None
@@ -111,18 +111,18 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 attr_unit = None
 
             case _:
-                _LOGGER.warning(f"Unexpected entity format ({self._entity.format}) for a sensor")
+                _LOGGER.warning(f"Unexpected entity format ({self._entity.datapoint.data_type}) for a sensor")
                 return
             
-        match self._entity.unit:
-            case 'addr':    attr_val, attr_precision = self.coordinator.addr_to_code(attr_val), None
+        match self._entity.datapoint.unit:
+            case 'addr':    attr_val, attr_precision = self.coordinator.address_to_code(attr_val), None
             case 'Seconds': attr_val, attr_precision = self.coordinator.timestamp_to_datetime(attr_val), None
         
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_state != self._entity.value):
-            self._xcom_state = self._entity.value
+        if force or (self._studer_state != self._entity.value):
+            self._studer_state = self._entity.value
             changed = True
         
         if force or (self._attr_native_value != attr_val):

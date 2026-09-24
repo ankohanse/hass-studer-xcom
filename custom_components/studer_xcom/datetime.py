@@ -27,8 +27,8 @@ from .entity_base import (
 from .entity_helper import (
     StuderEntityHelperFactory,
 )
-from pystuderxcom import (
-    XcomFormat
+from pystudernext import (
+    StuderDataType,
 )
 
 
@@ -89,25 +89,25 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         # The value as set in _entity.valueModified will no longer be relevant and must be ignored. 
         value = self._entity.value     
 
-        match self._entity.format:
-            case XcomFormat.INT32:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.INT32:
                 # Studer entity value is seconds since 1 Jan 1970 in local timezone. DateTimeEntity expects UTC
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
                 attr_val = self._coordinator.timestamp_to_datetime(value)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a datetime entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a datetime entity")
                 return
         
         # update value if it has changed
         changed = False
 
-        if force or (self._xcom_state != self._entity.value):
+        if force or (self._studer_state != self._entity.value):
             # Exception from normal behavior: Datetime entity is only used to display/set the current date+time.
             # After it is set, the time in _entity.value will automatically update every minute.
             # The value as set in _entity.valueModified will no longer be relevant and must be ignored.
-            # Therefore we assign xcom_state here, not xcom_ram_state and xcom_flash state.
-            self._xcom_state = self._entity.value
+            # Therefore we assign studer_state here, not studer_ram_state and studer_flash state.
+            self._studer_state = self._entity.value
             changed = True
         
         if force or (self._attr_native_value != attr_val):
@@ -123,14 +123,14 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
     async def async_set_value(self, value: datetime) -> None:
         """Change the date/time"""
         
-        match self._entity.format:
-            case XcomFormat.INT32:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.INT32:
                 # DateTimeEntity value is UTC, Studer expects seconds since 1 Jan 1970 in local timezone
                 # When converting we assume the studer local timezone equals the HomeAssistant timezone (Settings->General).
                 entity_value = self._coordinator.datetime_to_timestamp(value)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a datetime entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a datetime entity")
                 return
         
         _LOGGER.debug(f"Set {self.entity_id} to {value} ({entity_value})")

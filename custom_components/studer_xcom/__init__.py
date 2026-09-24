@@ -30,9 +30,17 @@ from .coordinator import (
     StuderCoordinator
 )
 from .const import (
+    CONF_NEXT_GW_HOST,
+    CONF_PRODUCT,
+    CONF_XCOM_PORT,
+    DEFAULT_NEXT_GW_HOST,
+    DEFAULT_PRODUCT,
+    DEFAULT_XCOM_PORT,
     DOMAIN,
+    NEXT_TITLE_FMT,
     PLATFORMS,
-    TITLE_FMT,
+    PRODUCTS,
+    XCOM_TITLE_FMT,
 )
 from .services import (
     async_setup_services,
@@ -63,8 +71,16 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     _LOGGER.info(f"Logging at {logging.getLevelName(log_level)}")
 
     # Get properties from the config_entry
-    port = config_entry.data[CONF_PORT]
-    title = str.format(TITLE_FMT, port=port)
+    product = config_entry.data.get(CONF_PRODUCT, DEFAULT_PRODUCT) 
+    match product:
+        case PRODUCTS.XCOM:
+            port = config_entry.data.get(CONF_XCOM_PORT, DEFAULT_XCOM_PORT)
+            title = str.format(XCOM_TITLE_FMT, port=port)
+        case PRODUCTS.NEXT:
+            host = config_entry.data.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
+            title = str.format(NEXT_TITLE_FMT, host)
+        case _:
+            _LOGGER.warning(f"Incorrect value for product: {product}")
     
     _LOGGER.info(f"Setup config entry for {title}")
 
@@ -72,7 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     # We force to create a fresh instance, otherwise data updates don't happen if this setup_entry was triggered by a reload
     coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry, force_create=True)
     if not await coordinator.start():
-        raise ConfigEntryNotReady(f"Timout while waiting for Studer Xcom client to connect to our port {port}.")
+        raise ConfigEntryNotReady(f"Timout while waiting for connection to Studer Gateway.")
     
     # Create devices
     await coordinator.async_create_devices(config_entry)
@@ -89,7 +105,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     await coordinator.async_cleanup_devices(config_entry)
 
     # Setup services
-    await async_setup_services(hass, config_entry)
+    # Disabled for now as only Xcom supports it
+    # await async_setup_services(hass, config_entry)
 
     # Reload entry when it is updated
     config_entry.async_on_unload(config_entry.add_update_listener(_async_update_listener))
