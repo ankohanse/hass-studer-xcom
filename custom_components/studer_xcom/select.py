@@ -23,8 +23,8 @@ from .entity_base import (
 from .entity_helper import (
     StuderEntityHelperFactory,
 )
-from pystuderxcom import (
-    XcomFormat,
+from pystudernext import (
+    StuderDataType,
 )
 
 
@@ -53,7 +53,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
 
         # update creation-time only attributes
-        self._attr_options = list(entity.options.values())
+        self._attr_options = list(entity.datapoint.enum_options.values())
         
         self._attr_entity_category = self.get_entity_category()
         self._attr_device_class = None
@@ -79,19 +79,19 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
     def _update_value(self, force:bool=False):
         """Process any changes in value"""
        
-        if self._entity.format != XcomFormat.SHORT_ENUM and self._entity.format != XcomFormat.LONG_ENUM:
-            _LOGGER.error(f"Unexpected format ({self._entity.format}) for a select entity")
+        if self._entity.datapoint.data_type != StuderDataType.ENUM16 and self._entity.datapoint.data_type != StuderDataType.ENUM32:
+            _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a select entity")
 
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        attr_val = self._entity.options.get(str(value), value) if value!=None else None
+        attr_val = self._entity.datapoint.enum_options.get(str(value), value) if value!=None else None
 
         # update value if it has changed
         changed = False
         
-        if force or (self._xcom_flash_state != self._entity.value):
-            self._xcom_flash_state = self._entity.value
-            self._xcom_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
+        if force or (self._studer_flash_state != self._entity.value):
+            self._studer_flash_state = self._entity.value
+            self._studer_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
             changed = True
 
         if force or (self._attr_current_option != attr_val):
@@ -107,7 +107,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
     async def async_select_option(self, option: str) -> None:
         """Change the selected option"""
 
-        data_val = next((k for k,v in self._entity.options.items() if v == option), None)
+        data_val = next((k for k,v in self._entity.datapoint.enum_options.items() if v == option), None)
         if data_val is not None:
             _LOGGER.info(f"Set {self.entity_id} to {option} ({data_val})")
                 

@@ -25,8 +25,8 @@ from .entity_base import (
 from .entity_helper import (
     StuderEntityHelperFactory,
 )
-from pystuderxcom import (
-    XcomFormat,
+from pystudernext import (
+    StuderDataType,
 )
 
 
@@ -85,28 +85,28 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         
         value = self._entity.valueModified if self._entity.valueModified is not None else self._entity.value
 
-        match self._entity.format:
-            case XcomFormat.FLOAT:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.FLOAT32 | StuderDataType.FLOAT64:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
                 attr_digits = 3
-                attr_min = float(self._entity.min) * weight if self._entity.min is not None else None
-                attr_max = float(self._entity.max) * weight if self._entity.max is not None else None
+                attr_min = float(self._entity.datapoint.min) * weight if self._entity.datapoint.min is not None else None
+                attr_max = float(self._entity.datapoint.max) * weight if self._entity.datapoint.max is not None else None
                 attr_val = round(float(value) * weight, attr_digits) if value is not None and not math.isnan(value) else None
-                attr_step = self._entity.inc
+                attr_step = self._entity.datapoint.inc
 
-            case XcomFormat.INT32:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
-                attr_min = int(self._entity.min) * weight if self._entity.min is not None else None
-                attr_max = int(self._entity.max) * weight if self._entity.max is not None else None
+                attr_min = int(self._entity.datapoint.min) * weight if self._entity.datapoint.min is not None else None
+                attr_max = int(self._entity.datapoint.max) * weight if self._entity.datapoint.max is not None else None
                 attr_val = int(value) * weight if value is not None and not math.isnan(value) else None
                 attr_step = self.get_number_step()
 
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a number entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a number entity")
                 return
         
         # update creation-time only attributes
@@ -120,9 +120,9 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         # update value if it has changed
         changed = False
         
-        if force or (self._xcom_flash_state != self._entity.value):
-            self._xcom_flash_state = self._entity.value
-            self._xcom_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
+        if force or (self._studer_flash_state != self._entity.value):
+            self._studer_flash_state = self._entity.value
+            self._studer_ram_state = self._entity.valueModified if self._entity.valueModified != None else self._entity.value
             changed = True
 
         if force or (self._attr_native_value != attr_val):
@@ -140,19 +140,19 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Change the selected option"""
         
-        match self._entity.format:
-            case XcomFormat.FLOAT:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.FLOAT32 | StuderDataType.FLOAT64:
                 # Convert to float
                 weight = self._entity.weight * self._unit_weight
                 entity_value = float(value / weight)
 
-            case XcomFormat.INT32:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 entity_value = int(value / weight)
 
             case _:
-                _LOGGER.error(f"Unexpected format ({self._entity.format}) for a number entity")
+                _LOGGER.error(f"Unexpected format ({self._entity.datapoint.data_type}) for a number entity")
                 return
         
         _LOGGER.debug(f"Set {self.entity_id} to {value} {self._attr_unit or ""} ({entity_value})")

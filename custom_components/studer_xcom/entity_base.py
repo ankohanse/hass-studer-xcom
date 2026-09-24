@@ -22,9 +22,9 @@ from homeassistant.const import UnitOfTime
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 
 from .const import (
-    ATTR_XCOM_FLASH_STATE,
-    ATTR_XCOM_RAM_STATE,
-    ATTR_XCOM_STATE,
+    ATTR_STUDER_FLASH_STATE,
+    ATTR_STUDER_RAM_STATE,
+    ATTR_STUDER_STATE,
     ATTR_STORED_VALUE,
     ATTR_STORED_VALUE_MODIFIED,
 )
@@ -32,9 +32,9 @@ from .coordinator import (
     StuderCoordinator,
     StuderEntityData
 )
-from pystuderxcom import (
-    XcomFormat,
-    XcomCategory,
+from pystudernext import (
+    StuderAccess,
+    StuderDataType,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,14 +81,14 @@ class StuderEntity(RestoreEntity):
         # Attributes from Entity base class
         self._attr_unique_id = entity.unique_id
         self._attr_has_entity_name = True
-        self._attr_name = entity.name
-        self._name = entity.name
+        self._attr_name = entity.datapoint.name
+        self._name = entity.datapoint.name
 
         # Custom extra attributes for the entity
         self._attributes: dict[str, str | list[str]] = {}
-        self._xcom_state: Any = None
-        self._xcom_flash_state: Any = None
-        self._xcom_ram_state: Any = None
+        self._studer_state: Any = None
+        self._studer_flash_state: Any = None
+        self._studer_ram_state: Any = None
         
 
     @property
@@ -114,14 +114,14 @@ class StuderEntity(RestoreEntity):
         """
         Return the state attributes to display in entity attributes.
         """
-        if self._xcom_state is not None:
-            self._attributes[ATTR_XCOM_STATE] = self._xcom_state
+        if self._studer_state is not None:
+            self._attributes[ATTR_STUDER_STATE] = self._studer_state
 
-        if self._xcom_flash_state is not None:
-            self._attributes[ATTR_XCOM_FLASH_STATE] = self._xcom_flash_state
+        if self._studer_flash_state is not None:
+            self._attributes[ATTR_STUDER_FLASH_STATE] = self._studer_flash_state
 
-        if self._xcom_ram_state is not None:
-            self._attributes[ATTR_XCOM_RAM_STATE] = self._xcom_ram_state
+        if self._studer_ram_state is not None:
+            self._attributes[ATTR_STUDER_RAM_STATE] = self._studer_ram_state
 
         return self._attributes        
     
@@ -170,7 +170,7 @@ class StuderEntity(RestoreEntity):
 
     def _convert_to_unit(self) -> str|None:
         """Convert from Studer units to Home Assistant units"""
-        match self._entity.unit:
+        match self._entity.datapoint.unit:
             case '°C':          return UnitOfTemperature.CELSIUS 
             case '°F':          return UnitOfTemperature.FAHRENHEIT
             case 'days':        return UnitOfTime.DAYS
@@ -209,8 +209,8 @@ class StuderEntity(RestoreEntity):
             case 'None' | None: return None
             
             case _:
-                _LOGGER.warn(f"Encountered a unit or measurement '{self._entity.unit}' for '{self._entity.unique_id}' that may not be supported by Home Assistant. Please contact the integration developer to have this resolved.")
-                return self._entity.unit
+                _LOGGER.warning(f"Encountered a unit or measurement '{self._entity.datapoint.unit}' for '{self._entity.unique_id}' that may not be supported by Home Assistant. Please contact the integration developer to have this resolved.")
+                return self._entity.datapoint.unit
     
     
     def get_unit(self) -> str|None:
@@ -241,7 +241,7 @@ class StuderEntity(RestoreEntity):
             case UnitOfApparentPower.VOLT_AMPERE:   return 'mdi:power-plug'
             case UnitOfFrequency.HERTZ:             return None
 
-        match self._entity.unit:
+        match self._entity.datapoint.unit:
             case 'Seconds':                         return 'mdi:clock'      # timestamp
             case _:                                 return None
     
@@ -249,8 +249,8 @@ class StuderEntity(RestoreEntity):
     def get_precision(self) -> int | None:
         """Convert from HA unit to number of digits displayed"""
 
-        match self._entity.format:
-            case XcomFormat.INT32:
+        match self._entity.datapoint.data_type:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
                 # We can calculate the suggested precision
                 weight = self._entity.weight * self._unit_weight
                 if weight >= 1.0:
@@ -258,7 +258,7 @@ class StuderEntity(RestoreEntity):
                 else:
                     return math.ceil(-1*math.log10(weight))
 
-            case XcomFormat.FLOAT:
+            case StuderDataType.FLOAT32 | StuderDataType.FLOAT64:
                 # continue below with precision derived from unit
                 pass  
 
@@ -286,14 +286,14 @@ class StuderEntity(RestoreEntity):
             case UnitOfApparentPower.VOLT_AMPERE:   return 3
             case UnitOfFrequency.HERTZ:             return 1    # FREQUENCY
 
-        match self._entity.unit:
+        match self._entity.datapoint.unit:
             case 'Seconds':                         return 0    # timestamp
             case _:                                 return 3
     
     
     def get_number_device_class(self) -> NumberDeviceClass|None:
         """Convert from HA unit to NumberDeviceClass"""
-        if self._entity.format == XcomFormat.SHORT_ENUM or self._entity.format == XcomFormat.LONG_ENUM:
+        if self._entity.datapoint.data_type == StuderDataType.ENUM16 or self._entity.datapoint.data_type == StuderDataType.ENUM32:
             return NumberDeviceClass.ENUM
             
         match self._attr_unit:
@@ -321,7 +321,7 @@ class StuderEntity(RestoreEntity):
     
     def get_sensor_device_class(self) -> SensorDeviceClass|None:
         """Convert from HA unit to SensorDeviceClass"""
-        if self._entity.format == XcomFormat.SHORT_ENUM or self._entity.format == XcomFormat.LONG_ENUM:
+        if self._entity.datapoint.data_type == StuderDataType.ENUM16 or self._entity.datapoint.data_type == StuderDataType.ENUM32:
             return SensorDeviceClass.ENUM
             
         match self._attr_unit:
@@ -345,24 +345,24 @@ class StuderEntity(RestoreEntity):
             case UnitOfApparentPower.VOLT_AMPERE:   return None
             case UnitOfFrequency.HERTZ:             return SensorDeviceClass.FREQUENCY
 
-        match self._entity.unit:
+        match self._entity.datapoint.unit:
             case 'Seconds':                         return SensorDeviceClass.TIMESTAMP
 
     
     def get_sensor_state_class(self) -> SensorStateClass|None:
         # Return StateClass=None for Enum or Label
-        if self._entity.format in [XcomFormat.SHORT_ENUM, XcomFormat.LONG_ENUM, XcomFormat.STRING]:
+        if self._entity.datapoint.data_type in [StuderDataType.ENUM16, StuderDataType.ENUM32, StuderDataType.STRING]:
             return None
         
         # Return StateClass=None for params that are a setting, unlikely to change often
-        if self._entity.category == XcomCategory.PARAMETER:
+        if self._entity.datapoint.access in [StuderAccess.READ_WRITE, StuderAccess.WRITE]:
             return None
         
         # Return StateClass=None for some specific entities
         nrs_none = [
             99022,  # Xcom
         ]
-        if self._entity.nr in nrs_none:
+        if self._entity.datapoint.nr in nrs_none:
             return None
         
         # Return StateClass=Total or Total_Increasing for some specific entities
@@ -374,10 +374,10 @@ class StuderEntity(RestoreEntity):
             15016, 15017, 15018, 15019, 15020, 15021, 15022, 15023, 15024, 15025, 15030, 15042, # vs
         ]
         
-        if self._entity.nr in nrs_t:
+        if self._entity.datapoint.nr in nrs_t:
             return SensorStateClass.TOTAL
             
-        elif self._entity.nr in nrs_ti:
+        elif self._entity.datapoint.nr in nrs_ti:
             return SensorStateClass.TOTAL_INCREASING
 
         # Return StateClass=None depending on device-class
@@ -395,32 +395,32 @@ class StuderEntity(RestoreEntity):
         # even if they would fail some of the tests below
         nrs_none = [
         ]
-        if self._entity.nr in nrs_none:
+        if self._entity.datapoint.nr in nrs_none:
             return None
             
         # Return None for params in groups associated with Control
         # and that a customer is allowed to change.
         # Leads to the entities being added under 'Controls'
         levels_control = []
-        if self._entity.level in levels_control:
+        if self._entity.datapoint.userlevel_w in levels_control:
             return None
         
         # Return CONFIG for params in groups associated with configuration
         # Leads to the entities being added under 'Configuration'
         # Typically intended for restart or update functionality
         nrs_config = []
-        if self._entity.nr in nrs_config:
+        if self._entity.datapoint.nr in nrs_config:
             return EntityCategory.CONFIG
             
         # Return DIAGNOSTIC for some specific entries associated with others that are DIAGNOSTIC
         # Leads to the entities being added under 'Diagnostic'
         nrs_diag = [5012]
-        if self._entity.nr in nrs_diag:
+        if self._entity.datapoint.nr in nrs_diag:
             return EntityCategory.DIAGNOSTIC
         
         # Return None for params that are a setting
         # Leads to the entities being added under 'Controls'
-        if self._entity.category == XcomCategory.PARAMETER:
+        if self._entity.datapoint.access in [StuderAccess.READ_WRITE, StuderAccess.WRITE]:
             return None
         
         # Return None for all others
@@ -439,9 +439,9 @@ class StuderEntity(RestoreEntity):
                 candidates = [1000, 100, 10, 1]
                 
         # find first candidate where min, max and diff are all dividable by (without remainder)
-        if self._entity.min is not None and self._entity.max is not None:
-            min = int(self._entity.min)
-            max = int(self._entity.max)
+        if self._entity.datapoint.min is not None and self._entity.datapoint.max is not None:
+            min = int(self._entity.datapoint.min)
+            max = int(self._entity.datapoint.max)
             diff = max - min
             
             for c in candidates:

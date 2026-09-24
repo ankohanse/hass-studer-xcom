@@ -30,43 +30,67 @@ from homeassistant.const import (
 )
 
 from .const import (
-    DOMAIN,
+    CONF_PRODUCT,
     CONF_VOLTAGE,
-    CONF_VOLTAGE_AC,
-    CONF_VOLTAGE_DC,
+    CONF_XCOM_VOLTAGE_AC,
+    CONF_XCOM_VOLTAGE_DC,
+    CONF_XCOM_PORT,
+    CONF_XCOM_WEBCONFIG_URL,
+    CONF_NEXT_GW_HOST,
+    CONF_NEXT_GW_PORT,
+    CONF_NEXT_WEBCONFIG_URL,
     CONF_USER_LEVEL,
     CONF_POLLING_INTERVAL,
     CONF_WEBCONFIG_URL,
+    CONF_GATEWAY_INFO,
     CONF_CLIENT_INFO,
-    DEFAULT_PORT,
-    DEFAULT_VOLTAGE_AC,
-    DEFAULT_VOLTAGE_DC,
+    DEFAULT_PRODUCT,
+    DEFAULT_PRODUCT_FAMILY_NUMBERS,
+    DEFAULT_XCOM_VOLTAGE_AC,
+    DEFAULT_XCOM_VOLTAGE_DC,
+    DEFAULT_XCOM_PORT,
+    DEFAULT_NEXT_GW_HOST,
+    DEFAULT_NEXT_GW_PORT,
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
-    DEFAULT_FAMILY_NUMBERS,
+    DOMAIN,
+    PRODUCTS,
+    PRODUCTS_NUMBERS_URL,
+    PRODUCTS_README_URL,
     INTEGRATION_README_URL,
-    MOXA_README_URL,
-    XCOM_APPENDIX_URL,
-    TITLE_FMT,
+    NEXT_README_URL,
+    NEXT_TITLE_FMT,
+    XCOM_README_URL,
+    XCOM_TITLE_FMT,
 )
 from .coordinator import (
+    StuderCoordinator,
     StuderCoordinatorFactory,
-    StuderClientConfig,
+    StuderGatewayConfig,
     StuderDeviceConfig,
 )
 from pystuderxcom import (
-    AsyncXcomDiscover,
-    AsyncXcomFactory,
-    XcomLevel,
-    XcomFormat,
-    XcomVoltage,
-    XcomCategory,
-    XcomDataset,
-    XcomDatapoint,
-    XcomDatapointUnknownException,
-    XcomDeviceFamilies,
-    XcomDeviceFamily,
+    AsyncStuderDiscover,
+    StuderDataset,
+    StuderDatapoint,
+    StuderDatapointUnknownException,
+    StuderDataType,
+    StuderDeviceFamilies,
+    StuderDeviceFamily,
+    StuderUserLevel,
 )
+from pystuderxcom import (
+    AsyncXcomDiscover,
+    XcomVoltage,
+    XcomDataset,
+    XcomDeviceFamilies,
+)
+from pystudernext import (
+    AsyncNextDiscover,
+    NextDataset,
+    NextDeviceFamilies,
+)
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,8 +106,8 @@ class CONFIG_MODE(Enum):
     CONFIG = 2
 
 class PROGRESS_PHASE(Enum):
-    MOXA_DISCOVER = 0
-    XCOM_DISCOVER = 2
+    DISCOVER_WEBCONFIG = 0
+    DISCOVER_DEVICES = 1
 
 class NUMBERS_ACTION(StrEnum):
     ADD_MENU = "add_via_menu"
@@ -115,17 +139,19 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         match config_mode:
             case CONFIG_MODE.INITIAL | CONFIG_MODE.RECONFIG:
                 # Steps that will be followed:
-                #   1. Progress - discover Moxa WebConfig
-                #   2. Client   - select voltage and Moxa Port
-                #   3. Progress - discover Xcom devices
-                #   4. Finish   - create HA devices and entities (for default infos and params)
+                #   1. Product       - select between Xtender / Next product range
+                #   2. Progress      - discover Moxa/Next WebConfig
+                #   3a. Xcom Client  - select voltage and Moxa Port
+                #   3b. Next Gateway - select gateway address and port
+                #   4. Progress      - discover Xcom/Next devices
+                #   5. Finish        - create HA devices and entities (for default infos and params)
 
-                _LOGGER.debug(f"Step start - next step discover Moxa")
-                return await self.async_step_progress_moxa()
+                _LOGGER.debug(f"Step start - next step: product")
+                return await self.async_step_product()
 
             case CONFIG_MODE.CONFIG:
                 # Steps that will be followed:
-                #    1. Progress - (re-)discover Xcom devices
+                #    1. Progress - (re-)discover Xcom/Next devices
                 #    2. Numbers  - show found devices and their infos and params numbers
                 #    3. Perform action:
                 #       o Add_Menu      - Add info or param via menu (returns to step 2)
@@ -135,8 +161,8 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 #       o Done          - Done (continues to step 4)
                 #    4. Finish   - (re-)create HA devices and entities (for modified infos and params)
 
-                _LOGGER.debug(f"Step start - next step discover Xcom")
-                return await self.async_step_progress_xcom()
+                _LOGGER.debug(f"Step start - next step: discover Xcom")
+                return await self.async_step_progress_devices()
             
 
     def _init(self, config_mode: CONFIG_MODE):
@@ -162,32 +188,38 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         # Load existing values for config and options or assign defaults
         # Note that some values have moved from config to options and we fallback for backwards compatibility
-        self._voltage_ac = configs.get(CONF_VOLTAGE_AC, None) or configs.get(CONF_VOLTAGE, DEFAULT_VOLTAGE_AC)
-        self._voltage_dc = configs.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
-        self._port = configs.get(CONF_PORT, DEFAULT_PORT)
+        self._product = configs.get(CONF_PRODUCT, DEFAULT_PRODUCT)
 
-        self._webconfig_url = configs.get(CONF_WEBCONFIG_URL, "")
+        self._xcom_voltage_ac = configs.get(CONF_XCOM_VOLTAGE_AC, None) or configs.get(CONF_VOLTAGE, DEFAULT_XCOM_VOLTAGE_AC)
+        self._xcom_voltage_dc = configs.get(CONF_XCOM_VOLTAGE_DC, DEFAULT_XCOM_VOLTAGE_DC)
+        self._xcom_port = configs.get(CONF_XCOM_PORT, None) or configs.get(CONF_PORT, DEFAULT_XCOM_PORT)
+        self._xcom_webconfig_url = configs.get(CONF_XCOM_WEBCONFIG_URL, None) or configs.get(CONF_WEBCONFIG_URL, "")
 
-        client_info = configs.get(CONF_CLIENT_INFO, {})
-        self._client_info = StuderClientConfig.from_dict(client_info)
+        self._next_gw_host = configs.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
+        self._next_gw_port = configs.get(CONF_NEXT_GW_PORT, DEFAULT_NEXT_GW_PORT)
+        self._next_webconfig_url = configs.get(CONF_NEXT_WEBCONFIG_URL, "")
+
+        client_info = configs.get(CONF_GATEWAY_INFO, None) or configs.get(CONF_CLIENT_INFO, {})
+        self._gateway_info = StuderGatewayConfig.from_dict(client_info)
 
         devices_data = options.get(CONF_DEVICES, None) or configs.get(CONF_DEVICES, [])
         self._devices = []
         self._devices_old = [StuderDeviceConfig.from_dict(device) for device in devices_data]
 
         level_str = options.get(CONF_USER_LEVEL, None) or configs.get(CONF_USER_LEVEL, str(DEFAULT_USER_LEVEL))
-        self._user_level = XcomLevel.from_str(level_str, None)
+        self._user_level = next( (level for level in StuderUserLevel if level_str.upper()==str(level)), DEFAULT_USER_LEVEL)
 
         self._polling_interval = options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)      
 
         # Set other internal helper variables
         self._errors: dict[str,str] = {}
-        self._coordinator = None
-        self._dataset = None
-        self._discover = None
+        self._coordinator: StuderCoordinator = None
+        self._dataset: StuderDataset = None
+        self._families: StuderDeviceFamilies = None
+        self._discover: AsyncStuderDiscover = None
 
         # Progress step
-        self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
+        self._progress_phase = PROGRESS_PHASE.DISCOVER_WEBCONFIG
         self._progress_steps: list[tuple] = None
         self._progress_tasks: list[asyncio.Task[None] | None] = None
         self._progress_trace: list[bool] = None
@@ -206,18 +238,79 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         self._device_code = ""
 
     
-    async def async_step_client(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+    async def async_step_product(self, user_input: dict[str,Any] | None = None) -> FlowResult:
         """
-        Step 1: to get the client configuration
+        To let the user select the product family: Xtender or Next
         """        
         if user_input is not None:
             # Get form data
-            _LOGGER.debug(f"Step client - handle input {user_input}")
-            voltage_ac_key = user_input.get(CONF_VOLTAGE_AC, DEFAULT_VOLTAGE_AC)
-            voltage_dc_key = user_input.get(CONF_VOLTAGE_DC, DEFAULT_VOLTAGE_DC)
-            self._voltage_ac = next((v for v in XcomVoltage if translation_key(v) == voltage_ac_key), DEFAULT_VOLTAGE_AC)
-            self._voltage_dc = next((v for v in XcomVoltage if translation_key(v) == voltage_dc_key), DEFAULT_VOLTAGE_DC)
-            self._port = user_input.get(CONF_PORT, DEFAULT_PORT)
+            _LOGGER.debug(f"Step product - handle input {user_input}")
+            product = user_input.get(CONF_PRODUCT, DEFAULT_PRODUCT)
+            self._product = next((p for p in PRODUCTS if translation_key(p) == product), DEFAULT_PRODUCT)
+
+            # Validity checks - None
+            self._errors = {}
+
+            if not self._errors:
+                _LOGGER.debug(f"Step product - next step: progress_webconfig")
+                return await self.async_step_progress_webconfig()
+
+        # Show the form to configure the port
+        _LOGGER.debug(f"Step product - show form")
+        
+        return self.async_show_form(
+            step_id = "product", 
+            data_schema = vol.Schema({
+                vol.Required(CONF_PRODUCT, description={"suggested_value": translation_key(self._product)}): selector({
+                    "select": { 
+                        "options": [translation_key(p) for p in PRODUCTS],
+                        "mode": "dropdown",
+                        "translation_key": CONF_PRODUCT
+                    }
+                }),
+            }),
+            errors = self._errors,
+            last_step = False,
+        )
+
+
+    async def async_step_progress_webconfig(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+        """
+        Discover Moxa/Next Gateway WebConfig
+        """
+        self._progress_phase = PROGRESS_PHASE.DISCOVER_WEBCONFIG
+        self._progress_steps = [ 
+            # (percent, action, function)
+            (0,   "webconfig",  self._async_gw_webconfig),
+        ]
+        self._progress_tasks = [None for idx in range(len(self._progress_steps))]
+        self._progress_trace = [True for idx in range(len(self._progress_steps))]
+
+        match self._product:
+            case PRODUCTS.XCOM:
+                self._progress_next_step_id = "xcom_gateway"
+                self._progress_err_step_id = "xcom_gateway"
+            case PRODUCTS.NEXT:
+                self._progress_next_step_id = "next_gateway"
+                self._progress_err_step_id = "next_gateway"
+            case _:
+                _LOGGER.warning(f"Step progress_webconfig - incorrect value for product: {self._product}")
+
+        return await self.async_step_progress(user_input)
+
+
+    async def async_step_xcom_gateway(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+        """
+        Step 1: to get the xcom client configuration
+        """        
+        if user_input is not None:
+            # Get form data
+            _LOGGER.debug(f"Step xcom_gateway - handle input {user_input}")
+            voltage_ac_key = user_input.get(CONF_XCOM_VOLTAGE_AC, DEFAULT_XCOM_VOLTAGE_AC)
+            voltage_dc_key = user_input.get(CONF_XCOM_VOLTAGE_DC, DEFAULT_XCOM_VOLTAGE_DC)
+            self._xcom_voltage_ac = next((v for v in XcomVoltage if translation_key(v) == voltage_ac_key), DEFAULT_XCOM_VOLTAGE_AC)
+            self._xcom_voltage_dc = next((v for v in XcomVoltage if translation_key(v) == voltage_dc_key), DEFAULT_XCOM_VOLTAGE_DC)
+            self._xcom_port = user_input.get(CONF_XCOM_PORT, DEFAULT_XCOM_PORT)
 
             # Check if port is not already in user for another Hub
             self._errors = {}
@@ -225,38 +318,40 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             _LOGGER.debug(f"Check config entries for port")
             for config_entry in self.hass.config_entries.async_entries(DOMAIN):
                 entry_id = config_entry.entry_id
-                entry_port = config_entry.data.get(CONF_PORT, DEFAULT_PORT)
+                entry_port = config_entry.data.get(CONF_XCOM_PORT, DEFAULT_XCOM_PORT)
 
-                if self._port == entry_port and self.context.get("entry_id",None) != entry_id:
-                    self._errors[CONF_PORT] = f"Port is already in use by another Hub"
+                if self._xcom_port == entry_port and self.context.get("entry_id",None) != entry_id:
+                    self._errors[CONF_XCOM_PORT] = f"Port is already in use by another Hub"
 
             if not self._errors:
-                _LOGGER.debug(f"Step client - next step discover Xcom")
-                return await self.async_step_progress_xcom()
+                _LOGGER.debug(f"Step xcom_gateway - next step: discover xcom_devices")
+                return await self.async_step_progress_devices()
 
         # Show the form to configure the port
-        _LOGGER.debug(f"Step client - show form")
-        
+        _LOGGER.debug(f"Step xcom_gateway - show form")
+
         return self.async_show_form(
-            step_id = "client", 
+            step_id = "xcom_gateway", 
             data_schema = vol.Schema({
-                vol.Required(CONF_VOLTAGE_AC, description={"suggested_value": translation_key(self._voltage_ac)}): selector({                    "select": { 
+                vol.Required(CONF_XCOM_VOLTAGE_AC, description={"suggested_value": translation_key(self._xcom_voltage_ac)}): selector({
+                    "select": { 
                         "options": [translation_key(v) for v in XcomVoltage if 'ac' in str(v)],
                         "mode": "dropdown",
-                        "translation_key": CONF_VOLTAGE_AC
+                        "translation_key": CONF_XCOM_VOLTAGE_AC
                     }
                 }),
-                vol.Required(CONF_VOLTAGE_DC, description={"suggested_value": translation_key(self._voltage_dc)}): selector({                    "select": { 
+                vol.Required(CONF_XCOM_VOLTAGE_DC, description={"suggested_value": translation_key(self._xcom_voltage_dc)}): selector({
+                    "select": { 
                         "options": [translation_key(v) for v in XcomVoltage if 'dc' in str(v)],
                         "mode": "dropdown",
-                        "translation_key": CONF_VOLTAGE_DC
+                        "translation_key": CONF_XCOM_VOLTAGE_DC
                     }
                 }),
-                vol.Required(CONF_PORT, description={"suggested_value": self._port}): cv.port
+                vol.Required(CONF_XCOM_PORT, description={"suggested_value": self._xcom_port}): cv.port
             }),
             description_placeholders = {
-                "moxa_config_url": f"[Xcom Moxa Web Config]({self._webconfig_url})" if self._webconfig_url else "Xcom Moxa Web Config",
-                "moxa_readme_url": f"[Xcom-LAN config.md]({MOXA_README_URL})",
+                "xcom_config_url": f"[Xcom Moxa Web Config]({self._xcom_webconfig_url})" if self._xcom_webconfig_url else "Xcom Moxa Web Config",
+                "xcom_readme_url": f"[Xcom-LAN config.md]({XCOM_README_URL})",
                 "readme_url": INTEGRATION_README_URL
             },
             errors = self._errors,
@@ -264,35 +359,62 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         )
 
 
-    async def async_step_progress_moxa(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+    async def async_step_next_gateway(self, user_input: dict[str,Any] | None = None) -> FlowResult:
         """
-        Discover Moxa WebConfig
-        """
-        self._progress_phase = PROGRESS_PHASE.MOXA_DISCOVER
-        self._progress_steps = [ 
-            # (percent, action, function)
-            (0,   "moxa_webconfig",  self._async_moxa_webconfig),
-        ]
-        self._progress_tasks = [None for idx in range(len(self._progress_steps))]
-        self._progress_trace = [True for idx in range(len(self._progress_steps))]
+        Step 1: to get the NextGateway client configuration
+        """        
+        if user_input is not None:
+            # Get form data
+            _LOGGER.debug(f"Step next_gateway - handle input {user_input}")
+            self._next_gw_host = user_input.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
+            self._next_gw_port = user_input.get(CONF_NEXT_GW_PORT, DEFAULT_NEXT_GW_PORT)
 
-        self._progress_next_step_id = "client"
-        self._progress_err_step_id = "client"
+            # Check if port is not already in user for another Hub
+            self._errors = {}
 
-        return await self.async_step_progress(user_input)
+            _LOGGER.debug(f"Check config entries for host+port")
+            for config_entry in self.hass.config_entries.async_entries(DOMAIN):
+                entry_id = config_entry.entry_id
+                entry_host = config_entry.data.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
+                entry_port = config_entry.data.get(CONF_NEXT_GW_PORT, DEFAULT_NEXT_GW_PORT)
+
+                if self._next_gw_host == entry_host and self._next_gw_port == entry_port and self.context.get("entry_id",None) != entry_id:
+                    self._errors[CONF_NEXT_GW_PORT] = f"Host and Port are already handled by another Hub"
+
+            if not self._errors:
+                _LOGGER.debug(f"Step next_gateway - next step: discover next_devices")
+                return await self.async_step_progress_devices()
+
+        # Show the form to configure the port
+        _LOGGER.debug(f"Step next_gateway - show form")
+        
+        return self.async_show_form(
+            step_id = "next_gateway", 
+            data_schema = vol.Schema({
+                vol.Required(CONF_NEXT_GW_HOST, description={"suggested_value": self._next_gw_host}): cv.host,
+                vol.Required(CONF_NEXT_GW_PORT, description={"suggested_value": self._next_gw_port}): cv.port
+            }),
+            description_placeholders = {
+                "next_config_url": f"[NextGateway Web Config]({self._next_webconfig_url})" if self._next_webconfig_url else "NextGateway Web Config",
+                "next_readme_url": f"[NextGateway config.md]({NEXT_README_URL})",
+                "readme_url": INTEGRATION_README_URL
+            },
+            errors = self._errors,
+            last_step = False,
+        )
 
 
-    async def async_step_progress_xcom(self, user_input: dict[str,Any] | None = None) -> FlowResult:
+    async def async_step_progress_devices(self, user_input: dict[str,Any] | None = None) -> FlowResult:
         """
         Discover reachable Xcom devices
         """        
-        self._progress_phase = PROGRESS_PHASE.XCOM_DISCOVER
+        self._progress_phase = PROGRESS_PHASE.DISCOVER_DEVICES
         self._progress_steps = [ 
             # (percent, action, function)
-            (0,   "xcom_connect",    self._async_xcom_connect),
-            (30,  "xcom_client",     self._async_xcom_client),
-            (50,  "xcom_devices",    self._async_xcom_devices),
-            (100, "xcom_disconnect", self._async_xcom_disconnect),
+            (0,   "connect",    self._async_gw_connect),
+            (30,  "details",    self._async_gw_details),
+            (50,  "devices",    self._async_gw_devices),
+            (100, "disconnect", self._async_gw_disconnect),
         ]
         self._progress_tasks = [None for idx in range(len(self._progress_steps))]
         self._progress_trace = [True for idx in range(len(self._progress_steps))]
@@ -300,7 +422,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         match self._config_mode:
             case CONFIG_MODE.INITIAL | CONFIG_MODE.RECONFIG:
                 self._progress_next_step_id = "finish"
-                self._progress_err_step_id = "client"
+                self._progress_err_step_id = "xcom_client" if self._product in [PRODUCTS.XCOM] else "next_client"
                 
             case CONFIG_MODE.CONFIG:
                 self._progress_next_step_id = "numbers"
@@ -360,19 +482,35 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         return self.async_show_progress_done(next_step_id = self._progress_next_step_id)
 
 
-    async def _async_moxa_webconfig(self, is_task=True):
-        """Try to (re-)discover the url for the Moxa Web Config so we can give a better error hint"""
-
+    async def _async_gw_webconfig(self, is_task=True):
+        """Try to (re-)discover the url for the Moxa/Next Gateway Web Config so we can give a better error hint"""
         try:
-            _LOGGER.info(f"Discover Moxa Web Config")
-            self._webconfig_url = await AsyncXcomDiscover.discover_moxa_webconfig(self._webconfig_url)
-            if self._webconfig_url:
-                _LOGGER.info(f"Discovered Moxa Web Config at {self._webconfig_url}")
-            else:
-                _LOGGER.info(f"Could not determine Moxa Web Config url")
+            match self._product:
+                case PRODUCTS.XCOM:
+                    _LOGGER.info(f"Discover Moxa Web Config")
+                    self._xcom_webconfig_url = await AsyncXcomDiscover.discover_gateway_webconfig(self._xcom_webconfig_url)
+                    if self._xcom_webconfig_url:
+                        _LOGGER.info(f"Discovered Xcom/Moxa Web Config at {self._xcom_webconfig_url}")
+                    else:
+                        _LOGGER.info(f"Could not determine Moxa Web Config url")
+
+                case PRODUCTS.NEXT:
+                    _LOGGER.info(f"Discover NextGateway Web Config")
+                    self._next_webconfig_url = await AsyncNextDiscover.discover_gateway_webconfig(self._next_webconfig_url)
+                    if self._next_webconfig_url:
+                        _LOGGER.info(f"Discovered NextGateway Web Config at {self._next_webconfig_url}")
+
+                        # If no host was set yet then derive probable host ip from the webconfig url
+                        if not self._next_gw_host:
+                            self._next_gw_host = self._next_webconfig_url.replace("http://", "")
+                    else:
+                        _LOGGER.info(f"Could not determine NextGateway Web Config url")
+
+                case _:
+                    _LOGGER.warning(f"Step progress gateway webconfig - incorrect value for product: {self._product}")
 
         except Exception as e:
-            _LOGGER.warning(f"Exception during discover of Moxa Web Config: {e}")
+            _LOGGER.warning(f"Exception during discover of Gateway Web Config: {e}")
             self._errors[CONF_WEBCONFIG_URL] = f"Unknown error: {e}"
         
         finally:
@@ -383,31 +521,81 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             if is_task:
                 self.hass.async_create_task( self._async_configure(flow_id=self.flow_id) )
 
+
+    async def _async_gw_vars_init(self):
+        """Initialize all temporary values used during discovery and choosing numbers"""
+
+        # Reset everything as product, voltage, host or port may have changed
+        await self._async_gw_vars_clear()
+
+        match self._product:
+            case PRODUCTS.XCOM:
+                self._coordinator = await StuderCoordinatorFactory.async_create_temp(
+                    product=self._product, 
+                    xcom_voltage_ac=self._xcom_voltage_ac, 
+                    xcom_voltage_dc=self._xcom_voltage_dc, 
+                    xcom_port=self._xcom_port, 
+                )
+                self._dataset = await XcomDataset.async_get_instance(self._xcom_voltage_ac, self._xcom_voltage_dc)
+                self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
+                self._families = await XcomDeviceFamilies.async_get_instance()
+
+            case PRODUCTS.XCOM:
+                self._coordinator = await StuderCoordinatorFactory.async_create_temp(
+                    product=self._product, 
+                    next_gw_host=self._next_gw_host, 
+                    next_gw_port=self._next_gw_port,
+                )
+                self._dataset = await NextDataset.async_get_instance()
+                self._discover = AsyncNextDiscover(self._coordinator._api, self._dataset)
+                self._families = await NextDeviceFamilies.async_get_instance()
+
+            case _:
+                _LOGGER.warning(f"Step progress-gateway-connect - incorrect value for product: {self._product}")
+
+
+    async def _async_gw_vars_clear(self):
+        """Clear all temporary values used during discovery and choosing numbers"""
+
+        if self._coordinator and self._coordinator.is_temp:
+            _LOGGER.info("Disconnect from gateway")
+            await self._coordinator.stop()
+
+        self._coordinator = None
+        self._dataset = None
+        self._discover = None
+        self._families = None
+        
+        XcomDataset.del_instance()
+        NextDataset.del_instance()
+        
     
-    async def _async_xcom_connect(self, is_task=True):
-        """Test the port by connecting to the Studer Xcom client"""
+    async def _async_gw_connect(self, is_task=True):
+        """Test the port by connecting to the Studer Xcom client / NextGateway"""
 
         try:
-            _LOGGER.info("Discover Xcom connection")
+            _LOGGER.info("Discover gateway connection")
 
-            # Create temporary coordinator and let Xcom connect to it
-            if not self._coordinator:
-                self._coordinator = await StuderCoordinatorFactory.async_create_temp(self._voltage_ac, self._voltage_dc, self._port)
+            # Make sure our _coordinator, _dataset and _families variables are set for the correct product
+            await self._async_gw_vars_init()
 
+            # Let the coordinator connect to the gateway
             if await self._coordinator.start():
-                _LOGGER.info("Xcom client connected")
+                _LOGGER.info("Gateway connected")
             else:
-                _LOGGER.info(f"Xcom client did not connect.")
-                self._errors[CONF_PORT] = f"Xcom client did not connect; make sure the Home Assistant IP address and this port are configured via the local Xcom Moxy Web Config"
+                _LOGGER.info(f"Could not connect to Studer gateway.")
+                self._errors[CONF_XCOM_PORT] = f"Xcom gateway did not connect; make sure the Home Assistant IP address and this port are configured via the local Xcom Moxy Web Config"
+                self._errors[CONF_NEXT_GW_HOST] = f"Could not connect to NextGateway; make sure the specified gateway host and port match the setting in the NextGateway Web Config"                        
 
         except Exception as e:
-            _LOGGER.warning(f"Exception during discover of connection: {e}")
-            self._errors[CONF_PORT] = f"Unknown error: {e}"
+            _LOGGER.warning(f"Exception during discover of gateway connection: {e}")
+            self._errors[CONF_XCOM_PORT] = f"Unknown error: {e}"
+            self._errors[CONF_NEXT_GW_HOST] = f"Unknown error: {e}"
 
         finally:
             # Cleanup
-            if CONF_PORT in self._errors:
-                await self._async_xcom_disconnect(is_task=False)
+            if CONF_XCOM_PORT in self._errors or CONF_NEXT_GW_HOST in self._errors:
+                await self._async_gw_disconnect(is_task=False)
 
             # Sleep because async_create_task cannot handle an immediate return
             await asyncio.sleep(1)  
@@ -417,43 +605,39 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 self.hass.async_create_task( self._async_configure(flow_id=self.flow_id) )
 
     
-    async def _async_xcom_client(self, is_task=True):
-        """Discover information about the Studer Xcom client"""
+    async def _async_gw_details(self, is_task=True):
+        """Discover information about the Studer Xcom client / NextGateway"""
 
         try:
-            _LOGGER.info("Discover Xcom client")
+            _LOGGER.info("Discover gateway details")
             
-            if not self._coordinator:
-                raise Exception("process _async_xcom_connect was not called prior to _async_xcom_client")
-
-            # Create our dataset and discovery helpers
-            if not self._dataset:
-                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
-
-            if not self._discover:
-                self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
+            if not self._discover or not self._coordinator or self._coordinator.product != self._product:
+                raise Exception("process _async_gw_connect was not called prior to _async_gw_devices")
 
             # Discover information about the Xcom client
-            info = await self._discover.discover_client_info()
+            info = await self._discover.discover_gateway_info()
             if info:
-                _LOGGER.info(f"Xcom client info detected; ip={info.ip}, guid={info.guid}")
-                self._client_info = StuderClientConfig(
-                    info.ip,
+                _LOGGER.info(f"Gateway details detected; host={info.host}, guid={info.guid}")
+                self._gateway_info = StuderGatewayConfig(
+                    info.host,
                     info.guid,
                 )
             else:
-                _LOGGER.info(f"Xcom client info not detected.")
-                self._errors[CONF_PORT] = f"No information found for Studer Xcom client"
+                _LOGGER.info(f"Gateway details not detected.")
+                match self._product:
+                    case PRODUCTS.XCOM: self._errors[CONF_XCOM_PORT] = f"No information found for Studer Xcom Gateway"
+                    case PRODUCTS.NEXT:    self._errors[CONF_NEXT_GW_HOST] = f"No information found for Studer Next Gateway"
                 return
 
         except Exception as e:
-            _LOGGER.warning(f"Exception during discover of connection: {e}")
-            self._errors[CONF_PORT] = f"Unknown error: {e}"
+            _LOGGER.warning(f"Exception during discover of gateway details: {e}")
+            self._errors[CONF_XCOM_PORT] = f"Unknown error: {e}"
+            self._errors[CONF_NEXT_GW_HOST] = f"Unknown error: {e}"
 
         finally:
             # Cleanup
-            if CONF_PORT in self._errors:
-                await self._async_xcom_disconnect(is_task=False)
+            if CONF_XCOM_PORT in self._errors or CONF_NEXT_GW_HOST in self._errors:
+                await self._async_gw_disconnect(is_task=False)
 
             # Sleep because async_create_task cannot handle an immediate return
             await asyncio.sleep(1)  
@@ -463,53 +647,53 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 self.hass.async_create_task( self._async_configure(flow_id=self.flow_id) )
 
 
-    async def _async_xcom_devices(self, is_task=True):
-        """Discover devices reachable via the Studer Xcom client"""
+    async def _async_gw_devices(self, is_task=True):
+        """Discover devices reachable via the Studer Xcom client / Next Gateway"""
 
         try:
             _LOGGER.info("Discover Xcom devices")
             
-            if not self._coordinator:
-                raise Exception("process _async_xcom_connect was not called prior to _async_xcom_devices")
+            if not self._discover or not self._coordinator or self._coordinator.product != self._product:
+                raise Exception("process _async_gw_connect was not called prior to _async_gw_devices")
 
-            # Create our dataset and discovery helpers
-            if not self._dataset:
-                self._dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
-
-            if not self._discover:
-                self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
-
-            # Discover Studer Xcom devices
+            # Discover Studer Xcom/Next devices
             devices_new = await self._discover.discover_devices(getExtendedInfo = True)
             if not devices_new:
-                self._errors[CONF_PORT] = f"No Studer devices found via Xcom client"
+                self._errors[CONF_XCOM_PORT] = f"No Studer devices found via Xcom Gateway"
+                self._errors[CONF_NEXT_GW_HOST] = f"No Studer devices found via Next Gateway"
                 return
-            
+
+            default_family_numbers = DEFAULT_PRODUCT_FAMILY_NUMBERS.get(self._product, {})
+
             self._devices = []
             for device in devices_new:
                 # In reconfigure, did we already have a deviceConfig for this device?
                 device_old = next((d for d in self._devices_old if StuderDeviceConfig.match(d, device)), None)
 
                 self._devices.append(StuderDeviceConfig(
+                    product = PRODUCTS.XCOM,
                     code = device.code,
-                    addr = device.addr,
+                    address = device.address,
+                    slave = device.slave,
                     family_id = device.family_id,
                     family_model = device.family_model,
                     device_model = device.device_model,
+                    serial = device.serial,
                     hw_version = device.hw_version,
                     sw_version = device.sw_version,
-                    fid = device.fid,
-                    numbers = device_old.numbers if device_old else DEFAULT_FAMILY_NUMBERS.get(device.family_id, [])  
+                    om_version = device.om_version,
+                    numbers = device_old.numbers if device_old else default_family_numbers.get(device.family_id, [])  
                 ))
 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
-            self._errors[CONF_PORT] = f"Unknown error: {e}"
+            self._errors[CONF_XCOM_PORT] = f"Unknown error: {e}"
+            self._errors[CONF_NEXT_GW_HOST] = f"Unknown error: {e}"
 
         finally:
             # Cleanup
-            if CONF_PORT in self._errors:
-                await self._async_xcom_disconnect(is_task=False)
+            if CONF_XCOM_PORT in self._errors or CONF_NEXT_GW_HOST in self._errors:
+                await self._async_gw_disconnect(is_task=False)
 
             # Sleep because async_create_task cannot handle an immediate return
             await asyncio.sleep(1)  
@@ -519,17 +703,15 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 self.hass.async_create_task( self._async_configure(flow_id=self.flow_id) )
 
 
-    async def _async_xcom_disconnect(self, is_task=True):
-        """Disconnect from the Studer Xcom client"""
+    async def _async_gw_disconnect(self, is_task=True):
+        """Disconnect from the Studer Xcom/Next Gateway"""
 
         try:
             if self._coordinator and self._coordinator.is_temp:
-                _LOGGER.info("Disconnect from Xcom client")
+                _LOGGER.info("Disconnect from gateway")
                 await self._coordinator.stop()
 
-            self._coordinator = None
-            self._discover = None
-            # do not unload self._dataset, it is used later on during 'numbers', 'add_menu' and 'add_number' steps
+            # do not unload self._dataset or self._familis, etc. They are used later on during 'numbers', 'add_menu' and 'add_number' steps
         except:
             pass
 
@@ -558,8 +740,9 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         """
         Step 3: specify params and infos numbers for each device
         """
-        if not self._dataset:
-            self._dataset = await AsyncXcomFactory.create_dataset(self._voltage_ac, self._voltage_dc)
+
+        # Make sure our _dataset and _families variables are set for the correct product
+        await self._async_gw_vars_init()
 
         if user_input is not None:
             # Get form data
@@ -571,24 +754,25 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             if not self._errors:
                 match action:
                     case NUMBERS_ACTION.DONE:
-                        _LOGGER.debug(f"Step numbers - next step finish")
+                        _LOGGER.debug(f"Step numbers - next step: finish")
                         self._dataset = None
+                        self._families = None
                         return await self.async_step_finish()
                     
                     case NUMBERS_ACTION.ADD_MENU:
-                        _LOGGER.debug(f"Step numbers - next step add_menu")
+                        _LOGGER.debug(f"Step numbers - next step: add_menu")
                         return await self.async_step_add_menu()
 
                     case NUMBERS_ACTION.ADD_NR:
-                        _LOGGER.debug(f"Step numbers - next step add_numbers")
+                        _LOGGER.debug(f"Step numbers - next step: add_numbers")
                         return await self.async_step_add_numbers()
 
                     case NUMBERS_ACTION.DEL_NR:
-                        _LOGGER.debug(f"Step numbers - next step del_numbers")
+                        _LOGGER.debug(f"Step numbers - next step: del_numbers")
                         return await self.async_step_del_numbers()
 
                     case NUMBERS_ACTION.OPT_ADVANCED:
-                        _LOGGER.debug(f"Step numbers - next step options_advanced")
+                        _LOGGER.debug(f"Step numbers - next step: options_advanced")
                         return await self.async_step_opt_advanced()
 
                     case _:
@@ -601,13 +785,13 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         datapoints_md += "| :---- | :----- | :---------- |\n"
 
         for idx,device in enumerate(self._devices):
-            family: XcomDeviceFamily = XcomDeviceFamilies.get_by_id(device.family_id)
+            family: StuderDeviceFamily = self._families.get_by_id(device.family_id)
             datapoints_md += f"| &nbsp; | &nbsp; | &nbsp; |\n" if idx > 0 else ""
             datapoints_md += f"| &nbsp; | *{device.code}* | {family.model} |\n"
             
             for nr in device.numbers:
-                datapoint: XcomDatapoint = self._dataset.get_by_nr(nr, family.id_for_nr)
-                datapoints_md += f"| {datapoint.level} | {nr} | {datapoint.name} |\n"
+                datapoint: StuderDatapoint = self._dataset.get_by_nr(nr, family.id_for_nr)
+                datapoints_md += f"| {datapoint.userlevel_r} | {nr} | {datapoint.name} |\n"
 
         # Build the schema for the form and show the form
         _LOGGER.debug(f"Step numbers - build schema")
@@ -633,7 +817,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             step_id="numbers",
             data_schema = schema,
             description_placeholders = {
-                "numbers_url": XCOM_APPENDIX_URL,
+                "numbers_url": PRODUCTS_NUMBERS_URL.get(self._product),
                 "datapoints": datapoints_md,
             },
             errors = self._errors,
@@ -652,7 +836,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             device = next( (device for device in self._devices if translation_key(device.code) == device_key), None)
 
             level_key = user_input.get(CONF_USER_LEVEL, "")
-            level = next( (level for level in XcomLevel if translation_key(level) == level_key), DEFAULT_USER_LEVEL)
+            level = next( (level for level in StuderUserLevel if translation_key(level) == level_key), DEFAULT_USER_LEVEL)
 
             # Additional validation here if needed
             self._device_code = device.code if device is not None else ""
@@ -660,16 +844,16 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             self._errors = {}
             if not self._errors:
                 if device is not None:
-                    _LOGGER.debug(f"Step add_menu - next step add_menu_items")
+                    _LOGGER.debug(f"Step add_menu - next step: add_menu_items")
                     self._menu_device = device
-                    self._menu_family = XcomDeviceFamilies.get_by_id(device.family_id)
+                    self._menu_family = self._families.get_by_id(device.family_id)
                     self._menu_level = level
                     self._menu_parent_name = "Root"
                     self._menu_parent_nr = 0
                     self._menu_history = list()
                     return await self.async_step_add_menu_items()
                 else:
-                    _LOGGER.debug(f"Step add_menu - next step numbers")
+                    _LOGGER.debug(f"Step add_menu - next step: numbers")
                     return await self.async_step_numbers()
                     
         # Build the schema for the form and show the form
@@ -684,7 +868,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             }),
             vol.Required(CONF_USER_LEVEL, description={"suggested_value": translation_key(self._user_level)}): selector({
                 "select": { 
-                    "options": [ translation_key(level) for level in XcomLevel if XcomLevel.INFO <= level <= XcomLevel.EXPERT ],
+                    "options": [ translation_key(level) for level in StuderUserLevel if StuderUserLevel.INFO <= level <= StuderUserLevel.EXPERT ],
                     "mode": "dropdown",
                     "translation_key": CONF_USER_LEVEL
                 }
@@ -713,7 +897,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             match key:
                 case "back":
-                    _LOGGER.debug(f"Step add_menu - next step numbers (back)")
+                    _LOGGER.debug(f"Step add_menu - next step: numbers (back)")
                     return await self.async_step_numbers()
                 
                 case "parent":
@@ -722,7 +906,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
                 case _:
                     datapoint = self._dataset.get_by_nr(int(key))
-                    if datapoint.format == XcomFormat.MENU:
+                    if datapoint.data_type == StuderDataType.MENU:
                         self._menu_history.append( (self._menu_parent_name, self._menu_parent_nr) )
                         self._menu_parent_name = datapoint.name
                         self._menu_parent_nr = datapoint.nr
@@ -735,7 +919,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                         _LOGGER.debug(f"all device: {self._devices}")
 
                         _LOGGER.debug(f"Step add_menu - added {datapoint.nr} to {self._menu_device.code}")
-                        _LOGGER.debug(f"Step add_menu - next step numbers")
+                        _LOGGER.debug(f"Step add_menu - next step: numbers")
                         return await self.async_step_numbers()                      
                     
         # Build the menu options for the form and show the form
@@ -746,12 +930,12 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         if len(self._menu_history) > 0:
             self._menu_options["parent"] = "parent" #"Back to parent menu"
 
-        items = self._dataset.get_menu_items(self._menu_parent_nr, self._menu_family.id_for_nr)
+        items: list[StuderDatapoint] = self._dataset.get_menu_items(self._menu_family.id_for_nr, self._menu_parent_nr)
         for item in items:
-            if item.level <= self._menu_level:
-                nr = f"{item.level} {item.nr} - " if item.nr >= 1000 else ""
+            if item.userlevel_r <= self._menu_level:
+                nr = f"{item.userlevel_r} {item.nr} - " if item.nr >= 1000 else ""
                 name = item.name
-                menu = " ►" if item.format == XcomFormat.MENU else ""
+                menu = " ►" if item.data_type == StuderDataType.MENU else ""
                 self._menu_options[str(item.nr)] = f"{nr}{name}{menu}"
 
         _LOGGER.debug(f"Step add_menu_items - build schema")
@@ -811,7 +995,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     self._errors[CONF_NUMBERS] = str(e)
 
             if not self._errors:
-                _LOGGER.debug(f"Step add_numbers - next step numbers")
+                _LOGGER.debug(f"Step add_numbers - next step: numbers")
                 return await self.async_step_numbers()
 
         # Build the schema for the form and show the form
@@ -832,7 +1016,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             step_id="add_numbers",
             data_schema = schema,
             description_placeholders = {
-                "numbers_url": XCOM_APPENDIX_URL,
+                "numbers_url": PRODUCTS_NUMBERS_URL.get(self._product, ""),
             },
             errors = self._errors,
             last_step = False,
@@ -871,7 +1055,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     self._errors[CONF_NUMBERS] = str(e)
 
             if not self._errors:
-                _LOGGER.debug(f"Step del_numbers - next step numbers")
+                _LOGGER.debug(f"Step del_numbers - next step: numbers")
                 return await self.async_step_numbers()
 
         # Build the schema for the form and show the form
@@ -892,7 +1076,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             step_id="del_numbers",
             data_schema = schema,
             description_placeholders = {
-                "numbers_url": XCOM_APPENDIX_URL,
+                "numbers_url": PRODUCTS_NUMBERS_URL.get(self._product, ""),
             },
             errors = self._errors,
             last_step = False,
@@ -901,7 +1085,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
     async def _valid_numbers(self, code: str, family_id:str) -> Callable[[Any], list[int]]:
 
-        family = XcomDeviceFamilies.get_by_id(family_id)
+        family = self._families.get_by_id(family_id)
         
         def validate(value: Any, check_family=True, check_level=True) -> list[int]:
 
@@ -921,17 +1105,14 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 if check_family:
                     try:
                         param = self._dataset.get_by_nr(nr, family.id_for_nr)
-                    except XcomDatapointUnknownException:
+                    except StuderDatapointUnknownException:
                         raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
 
-                    if param.category not in [XcomCategory.INFO, XcomCategory.PARAMETER]:
-                        raise vol.Invalid(f"Number {nr} is not a valid info or param")
-
-                    if param.format in [XcomFormat.MENU, XcomFormat.ERROR, XcomFormat.INVALID]:
+                    if param.data_type in [StuderDataType.MENU, StuderDataType.ERROR, StuderDataType.INVALID]:
                         raise vol.Invalid(f"Number {nr} is not a valid info or param")
                 
                 if check_level:
-                    if param.level > self._user_level:
+                    if param.userlevel_r > self._user_level:
                         raise vol.Invalid(f"Number {nr} is not allowed with user level {self._user_level}")
 
                 result.append(nr)
@@ -952,7 +1133,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
             # Do we have everything we need?
             if not self._errors:
-                _LOGGER.debug(f"Step options_advanced - next step numbers")
+                _LOGGER.debug(f"Step options_advanced - next step: numbers")
                 return await self.async_step_numbers()
 
             _LOGGER.error(f"Error: {self._errors}")
@@ -976,15 +1157,37 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         Configuration and discovery has succeeded
         """
 
+        # Clear our temporary _coordinator, _dataset and _families
+        await self._async_gw_vars_clear()
+        
         # Create the integration entry
-        title = str.format(TITLE_FMT, port=self._port)
+        
+
         data = {
-            CONF_VOLTAGE_AC: self._voltage_ac,
-            CONF_VOLTAGE_DC: self._voltage_dc,
-            CONF_PORT: self._port,
-            CONF_WEBCONFIG_URL: self._webconfig_url,
-            CONF_CLIENT_INFO: self._client_info.as_dict(),
+            CONF_PRODUCT: self._product,
+            CONF_GATEWAY_INFO: self._gateway_info.as_dict(),
         }
+        match self._product:
+            case PRODUCTS.XCOM:
+                data[CONF_XCOM_VOLTAGE_AC] = self._xcom_voltage_ac
+                data[CONF_XCOM_VOLTAGE_DC] = self._xcom_voltage_dc
+                data[CONF_XCOM_PORT] = self._xcom_port
+                data[CONF_XCOM_WEBCONFIG_URL] = self._xcom_webconfig_url
+
+                title = str.format(XCOM_TITLE_FMT, port=self._xcom_port)
+                unique_id = self._gateway_info.guid or f"{self._gateway_info.host}:{self._xcom_port}"
+
+            case PRODUCTS.NEXT:
+                data[CONF_NEXT_GW_HOST] = self._next_gw_host
+                data[CONF_NEXT_GW_PORT] = self._next_gw_port
+                data[CONF_NEXT_WEBCONFIG_URL] = self._next_webconfig_url
+                
+                title = str.format(NEXT_TITLE_FMT, host=self._next_gw_host)
+                unique_id = self._gateway_info.guid or f"{self._gateway_info.host}:{self._next_gw_port}"
+
+            case _:
+                raise ValueError(f"Unexpected value for parameter 'product': '{self._product}'")
+            
         options = {
             CONF_USER_LEVEL: str(self._user_level),
             CONF_DEVICES: [device.as_dict() for device in self._devices],
@@ -996,7 +1199,6 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             case CONFIG_MODE.INITIAL:
                 # Use client_info.guid as unique_id for this config flow to avoid the same hub being setup twice
                 # Fallback to alternatives if needed
-                unique_id = self._client_info.guid or f"{self._client_info.ip}:{self._port}"
                 _LOGGER.debug(f"set_unique_id: {unique_id}")
 
                 await self.async_set_unique_id(unique_id)

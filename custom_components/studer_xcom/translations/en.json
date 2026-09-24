@@ -2,27 +2,42 @@
   "config": {
     "flow_title": "{name}",
     "step": {
-      "client": {
+      "product": {
         "data": {
-          "voltage_ac": "Output voltage",
-          "voltage_dc": "Battery voltage",
-          "port": "Port"
+          "product": "Product family"
+        }
+      },
+      "xcom_gateway": {
+        "data": {
+          "xcom_voltage_ac": "Output voltage",
+          "xom_voltage_dc": "Battery voltage",
+          "xcom_port": "Port"
         },
         "data_description": {
-          "port": "Use the port as set in the local {moxa_config_url}.\n\nCheck document {moxa_readme_url} for details."
+          "xcom_port": "Use the port as set in the local {xcom_config_url}.\n\nCheck document {xcom_readme_url} for details."
+        }
+      },
+      "next_gateway": {
+        "data": {
+          "next_gw_host": "Host",
+          "next_gw_port": "Port"
+        },
+        "data_description": {
+          "next_gw_host": "Enter the host name or IP address of the Next Gateway",
+          "next_gw_port": "Enter the port of the Next Gateway; usually this is port 502"
         }
       },
       "progress": {
-        "description": "Xcom discovery - {percent}%"
+        "description": "Discovery - {percent}%"
       }
     },
     "progress": {
-      "description": "Xcom discovery - {percent}%",
-      "moxa_webconfig": "Searching Moxa Web Config",
-      "xcom_connect": "Connect to Xcom client",
-      "xcom_client": "Inspecting Xcom client",
-      "xcom_devices": "Searching Studer devices",
-      "xcom_disconnect": "Disconnect from Xcom client"
+      "description": "Discovery - {percent}%",
+      "webconfig": "Searching Studer gateway web-config",
+      "connect": "Connect to Studer gateway",
+      "details": "Inspecting Studer gateway",
+      "devices": "Searching Studer devices",
+      "disconnect": "Disconnect from Studer gateway"
     },
     "abort": {
       "already_configured": "Device is already configured",
@@ -90,17 +105,23 @@
     },
     "progress": {
       "title": "Configure",
-      "description": "Xcom discovery - {percent}%",
-      "moxa_webconfig": "Searching Moxa Web Config",
-      "xcom_connect": "Connect to Xcom client",
-      "xcom_client": "Inspecting Xcom client",
-      "xcom_devices": "Searching Studer devices",
-      "xcom_disconnect": "Disconnect from Xcom client"
+      "description": "Discovery - {percent}%",
+      "webconfig": "Searching Studer gateway web-config",
+      "connect": "Connect to Studer gateway",
+      "details": "Inspecting Studer gateway",
+      "devices": "Searching Studer devices",
+      "disconnect": "Disconnect from Studer gateway"
     },
     "error": {
     }
   },
   "selector": {
+    "product": {
+      "options": {
+        "xcom": "Xtender, VarioTrack and VarioString",
+        "next": "Next1 and Next3"
+      }
+    },
     "voltage_ac": {
       "options": {
         "120_vac": "120 Vac",
@@ -123,7 +144,7 @@
         "done": "done"
       }
     },
-    "device": {
+    "xcom_device": {
       "options": {
         "xt1": "Xtender XT1",
         "xt2": "Xtender XT2",
@@ -173,13 +194,68 @@
         "xcom": "XCOM"
       }
     },
+    "next_device": {
+      "options": {
+        "sys": "System",
+        "bat_1": "Battery 1",
+        "bat_2": "Battery 2",
+        "bat_3": "Battery 3",
+        "bat_4": "Battery 4",
+        "bat_5": "Battery 5",
+        "acs_1": "AC Source 1",
+        "acs_2": "AC Source 2",
+        "flx_1": "AC Flexload 1",
+        "flx_2": "AC Flexload 2",
+        "flx_3": "AC Flexload 3",
+        "flx_4": "AC Flexload 4",
+        "flx_5": "AC Flexload 5",
+        "nx3_1": "Next3 1",
+        "nx3_2": "Next3 2",
+        "nx3_3": "Next3 3",
+        "nx3_4": "Next3 4",
+        "nx3_5": "Next3 5",
+        "nx3_6": "Next3 6",
+        "nx3_7": "Next3 7",
+        "nx3_8": "Next3 8",
+        "nx3_9": "Next3 9",
+        "nx3_10": "Next3 10",
+        "nx3_11": "Next3 11",
+        "nx3_12": "Next3 12",
+        "nx3_13": "Next3 13",
+        "nx3_14": "Next3 14",
+        "nx3_15": "Next3 15",
+        "nx1_1": "Next1 1",
+        "nx1_2": "Next1 2",
+        "nx1_3": "Next1 3",
+        "nx1_4": "Next1 4",
+        "nx1_5": "Next1 5",
+        "nx1_6": "Next1 6",
+        "nx1_7": "Next1 7",
+        "nx1_8": "Next1 8",
+        "nx1_9": "Next1 9",
+        "nx1_10": "Next1 10",
+        "nx1_11": "Next1 11",
+        "nx1_12": "Next1 12",
+        "nx1_13": "Next1 13",
+        "nx1_14": "Next1 14",
+        "nx1_15": "Next1 15",
+        "nxg_1": "Next Gateway 1",
+        "nxg_2": "Next Gateway 2",
+        "pwr_1": "Powermeter 1",
+        "pwr_2": "Powermeter 2",
+        "pwr_3": "Powermeter 3",
+        "pwr_4": "Powermeter 4",
+        "pwr_5": "Powermeter 5",
+        "pwr_6": "Powermeter 6"
+      }
+    },
     "user_level": {
       "options": {
         "info": "Info",
         "basic": "Basic",
         "expert": "Expert",
-        "inst": "Installer",
-        "qsp": "Qualified Service Person"
+        "installer": "Installer",
+        "studer": "Studer Qualified Service Person"
       }
     },
     "numbers_menu": {
