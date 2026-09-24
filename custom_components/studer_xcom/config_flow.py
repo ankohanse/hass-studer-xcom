@@ -231,7 +231,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         self._menu_family = None
         self._menu_level = DEFAULT_USER_LEVEL
         self._menu_parent_name = "Root"
-        self._menu_parent_nr = 0
+        self._menu_parent_nr = ""
         self._menu_history = list()
 
         # Add/del param or info via menu step or via number step
@@ -657,33 +657,39 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 raise Exception("process _async_gw_connect was not called prior to _async_gw_devices")
 
             # Discover Studer Xcom/Next devices
-            devices_new = await self._discover.discover_devices(getExtendedInfo = True)
-            if not devices_new:
+            discovered_devices = await self._discover.discover_devices(getExtendedInfo = True)
+            if not discovered_devices:
                 self._errors[CONF_XCOM_PORT] = f"No Studer devices found via Xcom Gateway"
                 self._errors[CONF_NEXT_GW_HOST] = f"No Studer devices found via Next Gateway"
                 return
 
             default_family_numbers = DEFAULT_PRODUCT_FAMILY_NUMBERS.get(self._product, {})
 
-            self._devices = []
-            for device in devices_new:
-                # In reconfigure, did we already have a deviceConfig for this device?
-                device_old = next((d for d in self._devices_old if StuderDeviceConfig.match(d, device)), None)
+            self._devices_new = []
+            for dd in discovered_devices:
 
-                self._devices.append(StuderDeviceConfig(
-                    product = PRODUCTS.XCOM,
-                    code = device.code,
-                    address = device.address,
-                    slave = device.slave,
-                    family_id = device.family_id,
-                    family_model = device.family_model,
-                    device_model = device.device_model,
-                    serial = device.serial,
-                    hw_version = device.hw_version,
-                    sw_version = device.sw_version,
-                    om_version = device.om_version,
-                    numbers = device_old.numbers if device_old else default_family_numbers.get(device.family_id, [])  
-                ))
+                device_new = StuderDeviceConfig(
+                    product = self._product,
+                    code = dd.code,
+                    address = dd.address,
+                    slave = dd.slave,
+                    family_id = dd.family_id,
+                    family_model = dd.family_model,
+                    device_model = dd.device_model,
+                    serial = dd.serial,
+                    hw_version = dd.hw_version,
+                    sw_version = dd.sw_version,
+                    om_version = dd.om_version,
+                    numbers = default_family_numbers.get(dd.family_id, [])  
+                )
+
+                # In reconfigure, did we already have a deviceConfig for this device?
+                # If so, then keep the previously configured numbers
+                device_old = next((d for d in self._devices_old if StuderDeviceConfig.match(d, device_new)), None)
+                if device_old:
+                    device_new.numbers = device_old.numbers
+
+                self._devices.append(device_new)
 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of connection: {e}")
@@ -790,7 +796,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             datapoints_md += f"| &nbsp; | *{device.code}* | {family.model} |\n"
             
             for nr in device.numbers:
-                datapoint: StuderDatapoint = self._dataset.get_by_nr(nr, family.id_for_nr)
+                datapoint: StuderDatapoint = self._dataset.get_by_nr(nr, family)
                 datapoints_md += f"| {datapoint.userlevel_r} | {nr} | {datapoint.name} |\n"
 
         # Build the schema for the form and show the form
@@ -849,7 +855,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     self._menu_family = self._families.get_by_id(device.family_id)
                     self._menu_level = level
                     self._menu_parent_name = "Root"
-                    self._menu_parent_nr = 0
+                    self._menu_parent_nr = ""
                     self._menu_history = list()
                     return await self.async_step_add_menu_items()
                 else:
@@ -909,7 +915,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     if datapoint.data_type == StuderDataType.MENU:
                         self._menu_history.append( (self._menu_parent_name, self._menu_parent_nr) )
                         self._menu_parent_name = datapoint.name
-                        self._menu_parent_nr = datapoint.nr
+                        self._menu_parent_nr = str(datapoint.nr)
                         # continue below to show sub menu
                     else:
                         dev_numbers = set(self._menu_device.numbers or [])
@@ -923,14 +929,14 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                         return await self.async_step_numbers()                      
                     
         # Build the menu options for the form and show the form
-        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} {self._menu_family.id_for_nr}")
+        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} ({type(self._menu_parent_nr)}) {self._menu_family.id}")
         self._menu_options = {}
         self._menu_options["back"] = "back" #"Back to numbers overview"
 
         if len(self._menu_history) > 0:
             self._menu_options["parent"] = "parent" #"Back to parent menu"
 
-        items: list[StuderDatapoint] = self._dataset.get_menu_items(self._menu_family.id_for_nr, self._menu_parent_nr)
+        items: list[StuderDatapoint] = self._dataset.get_menu_items(self._menu_family, self._menu_parent_nr)
         for item in items:
             if item.userlevel_r <= self._menu_level:
                 nr = f"{item.userlevel_r} {item.nr} - " if item.nr >= 1000 else ""
@@ -1104,7 +1110,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
                 if check_family:
                     try:
-                        param = self._dataset.get_by_nr(nr, family.id_for_nr)
+                        param = self._dataset.get_by_nr(nr, family)
                     except StuderDatapointUnknownException:
                         raise vol.Invalid(f"Number {nr} is unknown for {family.model} devices")
 

@@ -479,11 +479,10 @@ class StuderCoordinator(DataUpdateCoordinator):
         # Resolve all numbers for each device
         for device in self._devices:
             family = families.get_by_id(device.family_id)
-            family_id_for_nr = family.id_for_nr if hasattr(family, 'id_for_nr') else family.id
 
             for nr in device.numbers:
                 try:
-                    datapoint = dataset.get_by_nr(nr, family_id_for_nr)
+                    datapoint = dataset.get_by_nr(nr, family)
                     entity = self._create_entity(datapoint, family, device)
                     if entity:
                         entity_map[entity.object_id] = entity
