@@ -929,7 +929,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                         return await self.async_step_numbers()                      
                     
         # Build the menu options for the form and show the form
-        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} ({type(self._menu_parent_nr)}) {self._menu_family.id}")
+        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} {self._menu_family.id}")
         self._menu_options = {}
         self._menu_options["back"] = "back" #"Back to numbers overview"
 
