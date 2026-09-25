@@ -233,7 +233,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         self._menu_family = None
         self._menu_level = DEFAULT_USER_LEVEL
         self._menu_parent_name = "Root"
-        self._menu_parent_nr = ""
+        self._menu_parent_id = ""
         self._menu_history = list()
 
         # Add/del param or info via menu step or via number step
@@ -858,7 +858,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     self._menu_family = self._families.get_by_id(device.family_id)
                     self._menu_level = level
                     self._menu_parent_name = "Root"
-                    self._menu_parent_nr = ""
+                    self._menu_parent_id = ""
                     self._menu_history = list()
                     return await self.async_step_add_menu_items()
                 else:
@@ -910,15 +910,15 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     return await self.async_step_numbers()
                 
                 case "parent":
-                    (self._menu_parent_name, self._menu_parent_nr) = self._menu_history.pop()
+                    (self._menu_parent_name, self._menu_parent_id) = self._menu_history.pop()
                     # continue below to show parent menu
 
                 case _:
-                    datapoint = self._dataset.get_by_nr(int(key))
+                    datapoint = self._dataset.get_by_id(key, self._menu_family)
                     if datapoint.data_type == StuderDataType.MENU:
-                        self._menu_history.append( (self._menu_parent_name, self._menu_parent_nr) )
+                        self._menu_history.append( (self._menu_parent_name, self._menu_parent_id) )
                         self._menu_parent_name = datapoint.name
-                        self._menu_parent_nr = str(datapoint.nr)
+                        self._menu_parent_id = datapoint.id
                         # continue below to show sub menu
                     else:
                         dev_numbers = set(self._menu_device.numbers or [])
@@ -932,20 +932,20 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                         return await self.async_step_numbers()                      
                     
         # Build the menu options for the form and show the form
-        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_nr} {self._menu_family.id}")
+        _LOGGER.debug(f"Step add_menu_items - build menu for {self._menu_parent_id} {self._menu_family.id}")
         self._menu_options = {}
         self._menu_options["back"] = "back" #"Back to numbers overview"
 
         if len(self._menu_history) > 0:
             self._menu_options["parent"] = "parent" #"Back to parent menu"
 
-        items: list[StuderDatapoint] = self._dataset.get_menu_items(self._menu_family, self._menu_parent_nr)
+        items: list[StuderDatapoint] = self._dataset.get_menu_items(self._menu_family, self._menu_parent_id)
         for item in items:
             if item.userlevel_r <= self._menu_level:
-                nr = f"{item.userlevel_r} {item.nr} - " if item.nr >= 1000 else ""
+                nr = f"{item.userlevel_r} {item.nr_or_addr} - " if item.parent_id not in StuderDataset.ROOT_PARENT_IDS else ""
                 name = item.name
                 menu = " ►" if item.data_type == StuderDataType.MENU else ""
-                self._menu_options[str(item.nr)] = f"{nr}{name}{menu}"
+                self._menu_options[item.id] = f"{nr}{name}{menu}"
 
         _LOGGER.debug(f"Step add_menu_items - build schema")
         schema = vol.Schema({
