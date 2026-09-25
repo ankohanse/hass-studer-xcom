@@ -139,7 +139,7 @@
       "options": {
         "add_via_menu": "add item via menu", 
         "add_via_nr": "add item via number", 
-        "del_via_nr": "remove item",
+        "del_via_nr": "remove item via number",
         "opt_advanced": "advanced options",
         "done": "done"
       }
