@@ -74,19 +74,19 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     product = config_entry.data.get(CONF_PRODUCT, DEFAULT_PRODUCT) 
     match product:
         case PRODUCTS.XCOM:
-            port = config_entry.data.get(CONF_XCOM_PORT, DEFAULT_XCOM_PORT)
+            port = config_entry.data.get(CONF_XCOM_PORT, None) or config_entry.data.get(CONF_PORT, DEFAULT_XCOM_PORT)
             title = str.format(XCOM_TITLE_FMT, port=port)
         case PRODUCTS.NEXT:
             host = config_entry.data.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
-            title = str.format(NEXT_TITLE_FMT, host)
+            title = str.format(NEXT_TITLE_FMT, host=host)
         case _:
             _LOGGER.warning(f"Incorrect value for product: {product}")
     
-    _LOGGER.info(f"Setup config entry for {title}")
+    _LOGGER.info(f"Setup config entry for '{title}'")
 
     # Get a Coordinator instance for this port and start it
     # We force to create a fresh instance, otherwise data updates don't happen if this setup_entry was triggered by a reload
-    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry, force_create=True)
+    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry, name=title, force_create=True)
     if not await coordinator.start():
         raise ConfigEntryNotReady(f"Timout while waiting for connection to Studer Gateway.")
     

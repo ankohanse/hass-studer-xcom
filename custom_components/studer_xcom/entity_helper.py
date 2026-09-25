@@ -132,7 +132,8 @@ class StuderEntityHelper:
                     # With more values or not of ON/OFF type it becomes a Select
                     return Platform.SELECT
                 
-                case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
+                case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
+                     StuderDataType.UINT16 | StuderDataType.UINT32 | StuderDataType.UINT64:
                     if entity.datapoint.default=="S" or entity.datapoint.min=="S" or entity.datapoint.max=="S":
                         return Platform.BUTTON
                     elif entity.datapoint.unit == "Seconds":
@@ -169,6 +170,7 @@ class StuderEntityHelper:
                 
                 case StuderDataType.FLOAT32 | StuderDataType.FLOAT64 | \
                      StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
+                     StuderDataType.UINT16 | StuderDataType.UINT32 | StuderDataType.UINT64 | \
                      StuderDataType.STRING:
 
                     # General sensor
