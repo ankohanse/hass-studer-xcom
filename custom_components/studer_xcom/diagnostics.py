@@ -2,26 +2,23 @@
 
 import logging
 
-from copy import deepcopy
-from typing import Any
+from dataclasses import fields, is_dataclass
+from datetime import datetime
+from multidict import MultiDict, MultiDictProxy
+from types import MappingProxyType, NoneType
+from typing import Any, Mapping
 
-from homeassistant.components.diagnostics import REDACTED
 from homeassistant.components.diagnostics.util import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
-
-from homeassistant.const import (
-    CONF_PORT,
-)
 
 from .const import (
     DIAGNOSTICS_REDACT,
 )
-
 from .coordinator import (
     StuderCoordinatorFactory,
     StuderCoordinator,
+    StuderDeviceConfig,
 )
 
 
@@ -30,16 +27,98 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, config_entry: ConfigEntry) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    port = config_entry.data[CONF_PORT]
-    _LOGGER.info(f"Retrieve diagnostics for install {port}")
+    _LOGGER.info(f"Retrieve diagnostics for {config_entry.entry_id}")
     
     coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry)
-    coordinator_data = await coordinator.async_get_diagnostics()
 
-    return {
+    diagnostics =  {
         "config": {
-            "data": async_redact_data(config_entry.data, DIAGNOSTICS_REDACT),
-            "options": async_redact_data(config_entry.options, DIAGNOSTICS_REDACT),
+            "data": config_entry.data,
+            "options": config_entry.options,
         },
-        "coordinator": async_redact_data(coordinator_data, DIAGNOSTICS_REDACT),
+        "coordinator": await coordinator.async_get_diagnostics(),
     }
+
+    # Convert contents to only contain standard structures: int, float, str, list, dict, ...
+    diagnostics_dict = to_dict(diagnostics)
+
+    # Hide passwords etc.
+    return async_redact_data(diagnostics_dict, DIAGNOSTICS_REDACT)
+    
+    
+# For some specific dataclasses we exclude None values
+DATACLASSES_EXCLUDE_NONE = (StuderDeviceConfig, )
+
+
+def to_dict(obj: Any, dict_factory=dict) -> Any:
+    """
+    Recursive to dictionary handler that is aware of dataclasses, Mapping and MultiDict proxies at any level in the data structure
+    """
+    try:
+        _LOGGER.debug(f"to_dict, obj={obj} ({type(obj)})")
+
+        if isinstance(obj, (int,float,str,NoneType)):
+            return obj
+        
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        
+        elif is_dataclass(obj):
+            # Not using dataclass.asdict() method, because it does not recurse in to the dataclass field values
+            # and convert the values themselves to dicts (using dict_factory).
+
+            df = dict_factory   # dict_factory if not isinstance(obj, DATACLASSES_EXCLUDE_NONE) else StuderDictFactory.exclude_none_values
+
+            result = []
+            for f in fields(obj):
+                value = to_dict(getattr(obj, f.name), df)
+                result.append((f.name, value))
+
+            return df(result)
+            
+        elif isinstance(obj, (list,tuple)):
+            if hasattr(obj, '_fields'):
+                # namedtuple, Standard asdict will not recurse in to the namedtuple fields and convert them to dicts (using dict_factory).
+                return type(obj)( *[to_dict(v, dict_factory) for v in obj] )
+
+            else:
+                # standard tuple or a list        
+                return type(obj)( to_dict(v, dict_factory) for v in obj )
+        
+        elif isinstance(obj, dict):
+            if hasattr(type(obj), 'default_factory'):
+                # defaultdict has a different constructor from dict
+                result = type(obj)(getattr(obj, 'default_factory'))
+            else:
+                result = type(obj)()
+        
+            for k, v in obj.items():
+                result[k] = to_dict(v, dict_factory)
+            return result
+        
+        elif isinstance(obj, (Mapping, MappingProxyType)):
+                return to_dict(dict(obj), dict_factory)
+        
+        elif isinstance(obj, (MultiDict, MultiDictProxy)):
+                return to_dict(obj.copy(), dict_factory)
+
+        if hasattr(obj, "__dict__"):
+            return { k: to_dict(v, dict_factory) for k,v in obj.__dict__.items() }
+
+        else:
+            return f"{type(obj)} {obj}"
+        
+    except Exception as ex:
+        return f"Could not serialize type {type(obj)}: {ex}"
+
+
+class StuderDictFactory:
+    @staticmethod
+    def exclude_none_values(x):
+        """
+        Usage:
+          item = SomeClass(...)
+          item_as_dict = asdict(item, dict_factory=StuderDictFactory.exclude_none_values)
+        """
+        return { k: v for (k, v) in x if v is not None }
+

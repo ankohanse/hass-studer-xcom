@@ -89,7 +89,8 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 attr_val = round(float(self._entity.value) * weight, attr_digits) if self._entity.value is not None and isinstance(self._entity.value,(float,int)) and not math.isnan(self._entity.value) else None
                 attr_unit = self.get_unit()
 
-            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
+                 StuderDataType.UINT16 | StuderDataType.UINT32 | StuderDataType.UINT64:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()

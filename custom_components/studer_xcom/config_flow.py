@@ -88,7 +88,9 @@ from pystuderxcom import (
 from pystudernext import (
     AsyncNextDiscover,
     NextDataset,
+    NextDatasetFlag,
     NextDeviceFamilies,
+    NextDeviceFamiliesFlag,
 )
 
 
@@ -264,7 +266,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 vol.Required(CONF_PRODUCT, description={"suggested_value": translation_key(self._product)}): selector({
                     "select": { 
                         "options": [translation_key(p) for p in PRODUCTS],
-                        "mode": "dropdown",
+                        "mode": "list",
                         "translation_key": CONF_PRODUCT
                     }
                 }),
@@ -391,7 +393,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         return self.async_show_form(
             step_id = "next_gateway", 
             data_schema = vol.Schema({
-                vol.Required(CONF_NEXT_GW_HOST, description={"suggested_value": self._next_gw_host}): cv.host,
+                vol.Required(CONF_NEXT_GW_HOST, description={"suggested_value": self._next_gw_host}): cv.string,
                 vol.Required(CONF_NEXT_GW_PORT, description={"suggested_value": self._next_gw_port}): cv.port
             }),
             description_placeholders = {
@@ -540,15 +542,16 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 self._discover = AsyncXcomDiscover(self._coordinator._api, self._dataset)
                 self._families = await XcomDeviceFamilies.async_get_instance()
 
-            case PRODUCTS.XCOM:
+            case PRODUCTS.NEXT:
                 self._coordinator = await StuderCoordinatorFactory.async_create_temp(
                     product=self._product, 
                     next_gw_host=self._next_gw_host, 
                     next_gw_port=self._next_gw_port,
                 )
-                self._dataset = await NextDataset.async_get_instance()
+                #AJH flag to add test family and datapoint
+                self._families = await NextDeviceFamilies.async_get_instance(flags={ NextDeviceFamiliesFlag.ADD_TEST: True })
+                self._dataset = await NextDataset.async_get_instance(flags={ NextDatasetFlag.ADD_TEST: True })
                 self._discover = AsyncNextDiscover(self._coordinator._api, self._dataset)
-                self._families = await NextDeviceFamilies.async_get_instance()
 
             case _:
                 _LOGGER.warning(f"Step progress-gateway-connect - incorrect value for product: {self._product}")

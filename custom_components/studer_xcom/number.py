@@ -96,7 +96,8 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
                 attr_val = round(float(value) * weight, attr_digits) if value is not None and not math.isnan(value) else None
                 attr_step = self._entity.datapoint.inc
 
-            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
+                 StuderDataType.UINT16 | StuderDataType.UINT32 | StuderDataType.UINT64:
                 # Convert to int
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()

@@ -92,7 +92,9 @@ from pystudernext import (
     NextApiUpdateException,
     NextApiUnpackException,
     NextDataset,
+    NextDatasetFlag,
     NextDeviceFamilies,
+    NextDeviceFamiliesFlag,
 )
 
 
@@ -231,7 +233,7 @@ class StuderEntityData():
 class StuderCoordinatorFactory:
     
     @staticmethod
-    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry, force_create: bool = False):
+    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry, name: str=None, force_create: bool=False):
         """
         Get existing Coordinator for a config entry, or create a new one if it does not yet exist
         """
@@ -261,7 +263,7 @@ class StuderCoordinatorFactory:
         if not coordinator:
             # Get an instance of our coordinator. This is unique to this config_entry
             _LOGGER.debug(f"Create coordinator")
-            coordinator = StuderCoordinator(hass, config, options)
+            coordinator = StuderCoordinator(hass, config, options, name=name)
 
             hass.data[DOMAIN][COORDINATOR][config_entry.entry_id] = coordinator
             
@@ -317,7 +319,7 @@ class StuderCoordinatorFactory:
         if not coordinator:
             # Get a temporary instance of our coordinator. This is unique to this port and voltage
             _LOGGER.debug(f"create temp coordinator, config: {config}, options: {options}")
-            coordinator = StuderCoordinator(hass, config, options, is_temp=True)
+            coordinator = StuderCoordinator(hass, config, options, name=None, is_temp=True)
         else:
             _LOGGER.debug(f"reuse existing coordinator")
 
@@ -327,13 +329,13 @@ class StuderCoordinatorFactory:
 class StuderCoordinator(DataUpdateCoordinator):
     """My custom coordinator."""
 
-    def __init__(self, hass, config: dict[str,Any], options: dict[str,Any], is_temp=False):
+    def __init__(self, hass, config: dict[str,Any], options: dict[str,Any], name:str=None, is_temp=False):
         """Initialize my coordinator."""
         super().__init__(
             hass,
             _LOGGER,
             # Name of the data. For logging purposes.
-            name = NAME,
+            name = name or NAME,
             # Polling interval. Will only be polled if there are subscribers.
             update_interval = timedelta(seconds=options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)),
             update_method = self._async_update_data,
@@ -369,10 +371,12 @@ class StuderCoordinator(DataUpdateCoordinator):
                 store_key = self._xcom_listen_port
 
             case PRODUCTS.NEXT:
+                gw_host_id = self._next_gw_host.replace(".","_") if self._next_gw_host is not None else None
+                
                 self._api: AsyncStuderApi = AsyncNextApi(host=self._next_gw_host, port=self._next_gw_port)
-                self._object_id_base = StuderCoordinator.create_id(self._next_gw_host)      # Base for object_id
-                self._unique_id_base = StuderCoordinator.create_id(self._gateway_info.guid) # Base for internal unique_id
-                self._device_id_base = StuderCoordinator.create_id(self._gateway_info.guid) # Base for device_id
+                self._object_id_base = StuderCoordinator.create_id(gw_host_id)                            # Base for object_id
+                self._unique_id_base = StuderCoordinator.create_id(self._gateway_info.guid or gw_host_id) # Base for internal unique_id
+                self._device_id_base = StuderCoordinator.create_id(self._gateway_info.guid or gw_host_id) # Base for device_id
                 store_key = self._next_gw_host
 
         # Id handling
@@ -456,6 +460,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
     async def _create_entity_map(self):
 
+        _LOGGER.debug(f"Create entities for '{self.name}'")
         entity_map: dict[str,StuderEntityData] = {}
 
         # No need to load StuderDataset from file if no device numbers need resolving
@@ -470,8 +475,8 @@ class StuderCoordinator(DataUpdateCoordinator):
 
             case PRODUCTS.NEXT:
                 # Load NextDataset from file(s)
-                dataset = await NextDataset.async_get_instance()
-                families = await NextDeviceFamilies.async_get_instance()
+                families = await NextDeviceFamilies.async_get_instance(flags={ NextDeviceFamiliesFlag.ADD_TEST: True })
+                dataset = await NextDataset.async_get_instance(flags={ NextDatasetFlag.ADD_TEST: True })
 
             case _:
                 _LOGGER.warning(f"Unknown product '{self._product}' found during creation of entity map")
@@ -505,7 +510,7 @@ class StuderCoordinator(DataUpdateCoordinator):
                 # Device associated with this entity
                 device_id = StuderCoordinator.create_id(PREFIX_ID, self._device_id_base, device.code),
                 device_code = device.code,
-                device_address = device.address,
+                device_address = device.address_or_slave,
             )
             return entity
         
@@ -518,7 +523,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         Add all detected devices to the hass device_registry
         """
-        _LOGGER.debug(f"Create devices")
+        _LOGGER.debug(f"Create devices for '{self.name}'")
         dr = device_registry.async_get(self.hass)
         valid_ids: list[tuple[str,str]] = []
 
@@ -546,7 +551,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         cleanup all devices that are no longer in use
         """
-        _LOGGER.info(f"Cleanup devices")
+        _LOGGER.info(f"Cleanup devices for '{self.name}'")
 
         dr = device_registry.async_get(self.hass)
         known_devices = device_registry.async_entries_for_config_entry(dr, config_entry.entry_id)
@@ -561,7 +566,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         cleanup all entities that are no longer in use
         """
-        _LOGGER.info(f"Cleanup entities")
+        _LOGGER.info(f"Cleanup entities for '{self.name}'")
 
         er = entity_registry.async_get(self.hass)
         known_entities = entity_registry.async_entries_for_config_entry(er, config_entry.entry_id)
@@ -582,7 +587,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         This is the place to pre-process the data to lookup tables
         so entities can quickly look up their data.
         """
-        _LOGGER.debug(f"Update data")
+        _LOGGER.debug(f"Update data for '{self.name}'")
 
         try:
             # Make sure the cache is available before we use it
@@ -598,8 +603,9 @@ class StuderCoordinator(DataUpdateCoordinator):
 
             # return updated data
             return self._get_data()
-            
+
         except asyncio.TimeoutError as err:
+            _LOGGER.debug(f"Timeout while communicating with API: {err}")
             raise UpdateFailed(f"Timeout while communicating with API: {err}")
 
 
@@ -609,7 +615,7 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         diag_key = f"RequestValues"
         try:
-            request_items: list[StuderValueItem] = [ StuderValueItem(datapoint=entity.datapoint, device=entity.device_code) for entity in self._entity_map.values() ]
+            request_items: list[StuderValueItem] = [ StuderValueItem(datapoint=entity.datapoint, device=entity.device_address) for entity in self._entity_map.values() ]
             request_data = StuderValueSet(items = request_items)
 
             response_data = await self._api.request_values(request_data, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
@@ -626,6 +632,8 @@ class StuderCoordinator(DataUpdateCoordinator):
             await self._addDiagnostic(diag_key, True)
 
         except Exception as e:
+            _LOGGER.warning(f"Failed to request values from gateway: {e}")
+
             if not isinstance(e, (XcomApiTimeoutException, NextApiTimeoutException)):
                 _LOGGER.warning(f"Failed to request values from gateway: {e}")
             await self._addDiagnostic(diag_key, False, e)
@@ -824,7 +832,7 @@ class StuderCoordinator(DataUpdateCoordinator):
 
     
     async def async_get_diagnostics(self) -> dict[str, Any]:
-        entity_map = { k: v.__dict__ for k,v in self._entity_map.items() }
+        
         diag_api = await self._api.get_diagnostics()
 
         return {
@@ -833,16 +841,16 @@ class StuderCoordinator(DataUpdateCoordinator):
                 "unique_id_base": self._unique_id_base,
                 "device_id_base": self._device_id_base,
                 "entity_map_ts": str(self._entity_map_ts),
-                "entity_map": entity_map,
+                "entity_map": self._entity_map,
             },
             "cache": self._cache,
             "diagnostics": {
                 "requests": self._diag_requests,
                 "statistics": self._diag_statistics | diag_api.get("statistics", {}),
             }
-        },
-    
-    
+        }
+
+
     def address_to_code(self, address):
         """Convert a device address into a more user friendly device code"""
         return next( (d.code for d in self._devices if d.address == address), address)
