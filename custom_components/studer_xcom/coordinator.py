@@ -74,7 +74,7 @@ from pystudernext import (  # pystudernext and pystuderxcom both contain exactly
 from pystuderxcom import (
     AsyncXcomApiTcp,
     XcomApiTcpMode,
-    #AJH XcomApiConnectException,
+    XcomApiConnectException,
     XcomApiTimeoutException,
     XcomApiReadException,
     XcomApiWriteException,
@@ -230,13 +230,6 @@ class StuderEntityData():
         self.device_address: int = device_address
 
 
-    def __eq__(self, other):
-        if not isinstance(other, StuderEntityData):
-            return NotImplemented
-
-        return self.object_id == other.object_id and self.value == other.value and self.valueModified == other.valueModified
-
-
 class StuderCoordinatorFactory:
     
     @staticmethod
@@ -333,7 +326,7 @@ class StuderCoordinatorFactory:
         return coordinator
     
 
-class StuderCoordinator(DataUpdateCoordinator):
+class StuderCoordinator(DataUpdateCoordinator[dict[str,StuderEntityData]]):
     """My custom coordinator."""
 
     def __init__(self, hass, config: dict[str,Any], options: dict[str,Any], name:str=None, is_temp=False):
@@ -346,7 +339,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             # Polling interval. Will only be polled if there are subscribers.
             update_interval = timedelta(seconds=options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)),
             update_method = self._async_update_data,
-            always_update = False,
+            always_update = True,
         )
 
         self._config: dict[str,Any] = config
@@ -625,7 +618,6 @@ class StuderCoordinator(DataUpdateCoordinator):
             for item in response_data.items:
                 # Find entity matching to this response item
                 entity = next( (e for e in self._entity_map.values() if e.datapoint.nr == item.datapoint.nr and e.device_code == item.code), None)
-
                 if entity is not None:
                     self._entity_map[entity.object_id].value = item.value
                     self._entity_map[entity.object_id].valueModified = self._getModified(entity)
@@ -805,7 +797,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             diag_data["counters"]["success"] += 1
         else:
             if not e:                          diag_data["counters"]["fail_other"] += 1
-            #AJH elif e is XcomApiConnectException: diag_data["counters"]["fail_connect"] += 1
+            elif e is XcomApiConnectException: diag_data["counters"]["fail_connect"] += 1
             elif e is NextApiConnectException: diag_data["counters"]["fail_connect"] += 1
             elif e is XcomApiTimeoutException: diag_data["counters"]["fail_timeout"] += 1
             elif e is NextApiTimeoutException: diag_data["counters"]["fail_timeout"] += 1
