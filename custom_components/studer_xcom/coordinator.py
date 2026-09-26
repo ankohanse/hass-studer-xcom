@@ -230,6 +230,13 @@ class StuderEntityData():
         self.device_address: int = device_address
 
 
+    def __eq__(self, other):
+        if not isinstance(other, StuderEntityData):
+            return NotImplemented
+
+        return self.object_id == other.object_id and self.value == other.value and self.valueModified == other.valueModified
+
+
 class StuderCoordinatorFactory:
     
     @staticmethod
@@ -339,7 +346,7 @@ class StuderCoordinator(DataUpdateCoordinator):
             # Polling interval. Will only be polled if there are subscribers.
             update_interval = timedelta(seconds=options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)),
             update_method = self._async_update_data,
-            always_update = True,
+            always_update = False,
         )
 
         self._config: dict[str,Any] = config
@@ -589,24 +596,19 @@ class StuderCoordinator(DataUpdateCoordinator):
         """
         _LOGGER.debug(f"Update data for '{self.name}'")
 
-        try:
-            # Make sure the cache is available before we use it
-            await self._async_read_cache()  
+        # Make sure the cache is available before we use it
+        await self._async_read_cache()  
 
-            # Request values for each configured param or infos number (datapoints). 
-            # Note that a single (broadcasted) request can result in multiple reponses received 
-            # (for instance in systems with more than one inverter)
-            await self._async_request_all_data()
+        # Request values for each configured param or infos number (datapoints). 
+        # Note that a single (broadcasted) request can result in multiple reponses received 
+        # (for instance in systems with more than one inverter)
+        await self._async_request_all_data()
 
-            # Periodically persist the cache
-            await self._async_persist_cache()
+        # Periodically persist the cache
+        await self._async_persist_cache()
 
-            # return updated data
-            return self._get_data()
-
-        except asyncio.TimeoutError as err:
-            _LOGGER.debug(f"Timeout while communicating with API: {err}")
-            raise UpdateFailed(f"Timeout while communicating with API: {err}")
+        # return updated data
+        return self._get_data()
 
 
     async def _async_request_all_data(self):
@@ -617,26 +619,27 @@ class StuderCoordinator(DataUpdateCoordinator):
         try:
             request_items: list[StuderValueItem] = [ StuderValueItem(datapoint=entity.datapoint, device=entity.device_address) for entity in self._entity_map.values() ]
             request_data = StuderValueSet(items = request_items)
-
+            
             response_data = await self._api.request_values(request_data, retries=REQ_RETRIES, timeout=REQ_TIMEOUT)
 
             for item in response_data.items:
                 # Find entity matching to this response item
                 entity = next( (e for e in self._entity_map.values() if e.datapoint.nr == item.datapoint.nr and e.device_code == item.code), None)
 
-                if entity is not None and item.value is not None:
+                if entity is not None:
                     self._entity_map[entity.object_id].value = item.value
                     self._entity_map[entity.object_id].valueModified = self._getModified(entity)
                     self._entity_map_ts = datetime.now()
 
             await self._addDiagnostic(diag_key, True)
 
-        except Exception as e:
-            _LOGGER.warning(f"Failed to request values from gateway: {e}")
-
-            if not isinstance(e, (XcomApiTimeoutException, NextApiTimeoutException)):
-                _LOGGER.warning(f"Failed to request values from gateway: {e}")
-            await self._addDiagnostic(diag_key, False, e)
+        except (XcomApiTimeoutException, NextApiTimeoutException) as ex:
+            await self._addDiagnostic(diag_key, False, ex)
+            raise TimeoutError(f"Timeout while communicating with the api: {ex}") from ex
+        
+        except Exception as ex:
+            await self._addDiagnostic(diag_key, False, ex)
+            raise UpdateFailed(f"Failed to request values from the api: {ex}") from ex
 
     
     async def async_modify_data(self, entity: StuderEntityData, value, set_modified:bool=True):
