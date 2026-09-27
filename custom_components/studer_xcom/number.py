@@ -59,6 +59,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         
         # update creation-time only attributes
         self._attr_mode = NumberMode.BOX
+        self._attr_native_unit_of_measurement = self.get_unit()
         self._attr_device_class = self.get_number_device_class()
         self._attr_entity_category = self.get_entity_category()
         
@@ -129,10 +130,7 @@ class StuderNumber(CoordinatorEntity, NumberEntity, StuderEntity):
         if force or (self._attr_native_value != attr_val):
             self._attr_state = attr_val
             self._attr_native_value = attr_val
-            self._attr_native_unit_of_measurement = self.get_unit()
             self._attr_suggested_display_precision = attr_precision
-
-            self._attr_icon = self.get_icon()
             changed = True
 
         return changed    

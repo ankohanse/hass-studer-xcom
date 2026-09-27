@@ -475,6 +475,7 @@ class StuderCoordinator(DataUpdateCoordinator[dict[str,StuderEntityData]]):
 
             case PRODUCTS.NEXT:
                 # Load NextDataset from file(s)
+                #AJH flag to add test family and datapoint
                 families = await NextDeviceFamilies.async_get_instance(flags={ NextDeviceFamiliesFlag.ADD_TEST: True })
                 dataset = await NextDataset.async_get_instance(flags={ NextDatasetFlag.ADD_TEST: True })
 

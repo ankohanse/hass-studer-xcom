@@ -11,12 +11,16 @@ from homeassistant.components.sensor import SensorStateClass
 from homeassistant.const import EntityCategory
 from homeassistant.const import Platform
 from homeassistant.const import PERCENTAGE
+from homeassistant.const import REVOLUTIONS_PER_MINUTE
 from homeassistant.const import UnitOfApparentPower
+from homeassistant.const import UnitOfDataRate
 from homeassistant.const import UnitOfElectricCurrent
 from homeassistant.const import UnitOfElectricPotential
 from homeassistant.const import UnitOfEnergy
 from homeassistant.const import UnitOfFrequency
+from homeassistant.const import UnitOfInformation
 from homeassistant.const import UnitOfPower
+from homeassistant.const import UnitOfReactivePower
 from homeassistant.const import UnitOfTemperature
 from homeassistant.const import UnitOfTime
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
@@ -27,6 +31,7 @@ from .const import (
     ATTR_STUDER_STATE,
     ATTR_STORED_VALUE,
     ATTR_STORED_VALUE_MODIFIED,
+    PRODUCTS,
 )
 from .coordinator import (
     StuderCoordinator,
@@ -35,9 +40,83 @@ from .coordinator import (
 from pystudernext import (
     StuderAccess,
     StuderDataType,
+    StuderUserLevel,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class UI():
+    u: str    # Home Assistant unit
+    w: int    # weight
+    p: int    # precision
+    i: str    # icon
+    ndc: str  # NumberDeviceClass
+    sdc: str  # SensorDeviceClass
+
+DEFAULT_UNIT_INFO = UI(u=None, w=1, p=1, i=None, ndc=None, sdc=None)
+
+UNIT_INFO: dict[str,UI] = {
+    '°C':           UI(u=UnitOfTemperature.CELSIUS ,                w=1,    p=1, i='mdi:thermometer',    ndc=NumberDeviceClass.TEMPERATURE,     sdc=SensorDeviceClass.TEMPERATURE),
+    '°F':           UI(u=UnitOfTemperature.FAHRENHEIT,              w=1,    p=1, i='mdi:thermometer',    ndc=NumberDeviceClass.TEMPERATURE,     sdc=SensorDeviceClass.TEMPERATURE),
+    'days':         UI(u=UnitOfTime.DAYS,                           w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'h':            UI(u=UnitOfTime.HOURS,                          w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'hours':        UI(u=UnitOfTime.HOURS,                          w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'min':          UI(u=UnitOfTime.MINUTES,                        w=1,    p=0, i='mdi:timer-sand',     ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'minutes':      UI(u=UnitOfTime.MINUTES,                        w=1,    p=0, i='mdi:timer-sand',     ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'Minutes':      UI(u=UnitOfTime.MINUTES,                        w=1,    p=0, i='mdi:timer-sand',     ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    's':            UI(u=UnitOfTime.SECONDS,                        w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    's.':           UI(u=UnitOfTime.SECONDS,                        w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'sec':          UI(u=UnitOfTime.SECONDS,                        w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'seconds':      UI(u=UnitOfTime.SECONDS,                        w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    'Seconds':      UI(u=None,                                      w=1,    p=0, i='mdi:clock',          ndc=None,                              sdc=SensorDeviceClass.TIMESTAMP),
+    'ms':           UI(u=UnitOfTime.MILLISECONDS,                   w=1,    p=0, i='mdi:timer',          ndc=NumberDeviceClass.DURATION,        sdc=SensorDeviceClass.DURATION),
+    '%':            UI(u=PERCENTAGE,                                w=1,    p=0, i='mdi:percent',        ndc=None,                              sdc=None),
+    '% SOC':        UI(u=PERCENTAGE,                                w=1,    p=0, i='mdi:percent',        ndc=NumberDeviceClass.BATTERY,         sdc=SensorDeviceClass.BATTERY),
+    '%/s':          UI(u='%/s',                                     w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    '%/min':        UI(u='%/min',                                   w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    '%/day':        UI(u='%/day',                                   w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    '%Cnom/month':  UI(u='%Cnom/month',                             w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    '‰':            UI(u='‰',                                       w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'V':            UI(u=UnitOfElectricPotential.VOLT,              w=1,    p=1, i='mdi:lightning-bolt', ndc=NumberDeviceClass.VOLTAGE,         sdc=SensorDeviceClass.VOLTAGE),
+    'Vac':          UI(u=UnitOfElectricPotential.VOLT,              w=1,    p=1, i='mdi:lightning-bolt', ndc=NumberDeviceClass.VOLTAGE,         sdc=SensorDeviceClass.VOLTAGE),
+    'Vdc':          UI(u=UnitOfElectricPotential.VOLT,              w=1,    p=1, i='mdi:lightning-bolt', ndc=NumberDeviceClass.VOLTAGE,         sdc=SensorDeviceClass.VOLTAGE),
+    'V/°C':         UI(u='V/°C',                                    w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'A':            UI(u=UnitOfElectricCurrent.AMPERE,              w=1,    p=1, i='mdi:lightning-bolt', ndc=NumberDeviceClass.CURRENT,         sdc=SensorDeviceClass.CURRENT),
+    'Aac':          UI(u=UnitOfElectricCurrent.AMPERE,              w=1,    p=1, i='mdi:lightning-bolt', ndc=NumberDeviceClass.CURRENT,         sdc=SensorDeviceClass.CURRENT),
+    'Adc':          UI(u=UnitOfElectricCurrent.AMPERE,              w=1,    p=1, i='mdi:lightning-bolt', ndc=NumberDeviceClass.CURRENT,         sdc=SensorDeviceClass.CURRENT),
+    'Ah':           UI(u='Ah',                                      w=1,    p=1, i='mdi:lightning-bolt', ndc=None,                              sdc=None),
+    'kAh':          UI(u='kAh',                                     w=1,    p=1, i='mdi:lightning-bolt', ndc=None,                              sdc=None),
+    'A/%':          UI(u='A/%',                                     w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'mW':           UI(u=UnitOfPower.MILLIWATT,                     w=1,    p=1, i='mdi:power-plug',     ndc=NumberDeviceClass.POWER,           sdc=SensorDeviceClass.POWER),
+    'W':            UI(u=UnitOfPower.WATT,                          w=1,    p=3, i='mdi:power-plug',     ndc=NumberDeviceClass.POWER,           sdc=SensorDeviceClass.POWER),
+    'kW':           UI(u=UnitOfPower.KILO_WATT,                     w=1,    p=3, i='mdi:power-plug',     ndc=NumberDeviceClass.POWER,           sdc=SensorDeviceClass.POWER),
+    'Wh':           UI(u=UnitOfEnergy.WATT_HOUR,                    w=1,    p=3, i='mdi:lightning-bolt', ndc=NumberDeviceClass.ENERGY,          sdc=SensorDeviceClass.ENERGY),
+    'kWh':          UI(u=UnitOfEnergy.KILO_WATT_HOUR,               w=1,    p=3, i='mdi:lightning-bolt', ndc=NumberDeviceClass.ENERGY,          sdc=SensorDeviceClass.ENERGY),
+    'MWh':          UI(u=UnitOfEnergy.MEGA_WATT_HOUR,               w=1,    p=3, i='mdi:lightning-bolt', ndc=NumberDeviceClass.ENERGY,          sdc=SensorDeviceClass.ENERGY),
+    'VA':           UI(u=UnitOfApparentPower.VOLT_AMPERE,           w=1,    p=3, i='mdi:power-plug',     ndc=NumberDeviceClass.APPARENT_POWER,  sdc=SensorDeviceClass.APPARENT_POWER),
+    'kVA':          UI(u=UnitOfApparentPower.VOLT_AMPERE,           w=1000, p=3, i='mdi:power-plug',     ndc=NumberDeviceClass.APPARENT_POWER,  sdc=SensorDeviceClass.APPARENT_POWER),
+    'VAR':          UI(u=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,  w=1,    p=3, i='mdi:power-plug',     ndc=NumberDeviceClass.REACTIVE_POWER,  sdc=SensorDeviceClass.REACTIVE_POWER),
+    'VAr':          UI(u=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,  w=1,    p=3, i='mdi:power-plug',     ndc=NumberDeviceClass.REACTIVE_POWER,  sdc=SensorDeviceClass.REACTIVE_POWER),
+    'Hz':           UI(u=UnitOfFrequency.HERTZ,                     w=1,    p=1, i=None,                 ndc=NumberDeviceClass.FREQUENCY,       sdc=SensorDeviceClass.FREQUENCY),
+    'Hz/s':         UI(u='Hz/s',                                    w=1,    p=1, i=None,                 ndc=None,                              sdc=None),     
+    'mHz/s':        UI(u='mHz/s',                                   w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'RPM':          UI(u=REVOLUTIONS_PER_MINUTE,                    w=1,    p=0, i=None,                 ndc=None,                              sdc=None),
+    'KiB':          UI(u=UnitOfInformation.KIBIBYTES,               w=1,    p=0, i=None,                 ndc=NumberDeviceClass.DATA_SIZE,       sdc=SensorDeviceClass.DATA_SIZE),
+    'kbps':         UI(u=UnitOfDataRate.KILOBYTES_PER_SECOND,       w=1,    p=0, i=None,                 ndc=NumberDeviceClass.DATA_RATE,       sdc=SensorDeviceClass.DATA_RATE),
+    'degree':       UI(u='degree',                                  w=1,    p=0, i=None,                 ndc=None,                              sdc=None),
+    '°':            UI(u='°',                                       w=1,    p=0, i=None,                 ndc=None,                              sdc=None),
+    '/20':          UI(u='/20',                                     w=1,    p=0, i=None,                 ndc=None,                              sdc=None),
+    'Ctmp':         UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'Cdyn':         UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'addr':         UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'Level':        UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    '-':            UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    '':             UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    'None':         UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+    None:           UI(u=None,                                      w=1,    p=1, i=None,                 ndc=None,                              sdc=None),
+}
 
 
 @dataclass
@@ -73,8 +152,6 @@ class StuderEntity(RestoreEntity):
         self._coordinator: StuderCoordinator = coordinator
         self._entity: StuderEntityData = entity
         self._platform: Platform = platform
-        self._attr_unit: str|None = self._convert_to_unit()
-        self._unit_weight: int = 1
 
         self.object_id: str = entity.object_id
 
@@ -89,7 +166,20 @@ class StuderEntity(RestoreEntity):
         self._studer_state: Any = None
         self._studer_flash_state: Any = None
         self._studer_ram_state: Any = None
-        
+
+        # Attributes derived from Unit
+        unit_info = UNIT_INFO.get(self._entity.datapoint.unit)
+        if unit_info is None:
+            _LOGGER.warning(f"Encountered a unit or measurement '{self._entity.datapoint.unit}' for '{self._entity.unique_id}' that may not be supported by Home Assistant. Please contact the integration developer to have this resolved.")
+            unit_info = DEFAULT_UNIT_INFO
+
+        self._attr_icon = unit_info.i
+        self._attr_unit = unit_info.u
+        self._unit_weight = unit_info.w
+        self._unit_precision = unit_info.p
+        self._unit_ndc = unit_info.ndc # NumberDeviceClass
+        self._unit_sdc = unit_info.sdc # SensorDeviceClass
+
 
     @property
     def suggested_object_id(self) -> str | None:
@@ -168,89 +258,22 @@ class StuderEntity(RestoreEntity):
         """
 
 
-    def _convert_to_unit(self) -> str|None:
-        """Convert from Studer units to Home Assistant units"""
-        match self._entity.datapoint.unit:
-            case '°C':          return UnitOfTemperature.CELSIUS 
-            case '°F':          return UnitOfTemperature.FAHRENHEIT
-            case 'days':        return UnitOfTime.DAYS
-            case 'h':           return UnitOfTime.HOURS
-            case 'hours':       return UnitOfTime.HOURS
-            case 'min':         return UnitOfTime.MINUTES
-            case 'minutes':     return UnitOfTime.MINUTES
-            case 'Minutes':     return UnitOfTime.MINUTES
-            case 's':           return UnitOfTime.SECONDS
-            case 'sec':         return UnitOfTime.SECONDS
-            case 'seconds':     return UnitOfTime.SECONDS
-            case 'Seconds':     return None                 # Timestamp
-            case '%':           return PERCENTAGE
-            case '% SOC':       return PERCENTAGE
-            case 'V':           return UnitOfElectricPotential.VOLT
-            case 'Vac':         return UnitOfElectricPotential.VOLT
-            case 'Vdc':         return UnitOfElectricPotential.VOLT
-            case 'A':           return UnitOfElectricCurrent.AMPERE
-            case 'Aac':         return UnitOfElectricCurrent.AMPERE
-            case 'Adc':         return UnitOfElectricCurrent.AMPERE
-            case 'Ah':          return 'Ah'
-            case 'kAh':         return 'kAh'
-            case 'mW':          return UnitOfPower.MILLIWATT
-            case 'W':           return UnitOfPower.WATT
-            case 'kW':          return UnitOfPower.KILO_WATT
-            case 'Wh':          return UnitOfEnergy.WATT_HOUR
-            case 'kWh':         return UnitOfEnergy.KILO_WATT_HOUR
-            case 'MWh':         return UnitOfEnergy.MEGA_WATT_HOUR
-            case 'VA':          return UnitOfApparentPower.VOLT_AMPERE
-            case 'kVA':         self._unit_weight = 1000; return UnitOfApparentPower.VOLT_AMPERE
-            case 'Hz':          return UnitOfFrequency.HERTZ
-            case 'Ctmp':        return None
-            case 'Cdyn':        return None
-            case 'addr':        return None
-            case '':            return None
-            case 'None' | None: return None
-            
-            case _:
-                _LOGGER.warning(f"Encountered a unit or measurement '{self._entity.datapoint.unit}' for '{self._entity.unique_id}' that may not be supported by Home Assistant. Please contact the integration developer to have this resolved.")
-                return self._entity.datapoint.unit
-    
-    
     def get_unit(self) -> str|None:
+        """
+        Convert from Studer datapoint unit of measurement to HA unit of measurement
+        """
         return self._attr_unit
         
     
-    def get_icon(self) -> str|None:
-        """Convert from HA unit to icon"""
-        match self._attr_unit:
-            case UnitOfTemperature.CELSIUS:         return 'mdi:thermometer'
-            case UnitOfTemperature.FAHRENHEIT:      return 'mdi:thermometer'
-            case UnitOfTime.DAYS:                   return 'mdi:timer'
-            case UnitOfTime.DAYS:                   return 'mdi:timer'
-            case UnitOfTime.HOURS:                  return 'mdi:timer'
-            case UnitOfTime.MINUTES:                return 'mdi:timer-sand'
-            case UnitOfTime.SECONDS:                return 'mdi:timer'
-            case '%':                               return 'mdi:percent'
-            case UnitOfElectricPotential.VOLT:      return 'mdi:lightning-bolt'
-            case UnitOfElectricCurrent.AMPERE:      return 'mdi:lightning-bolt'
-            case 'Ah':                              return 'mdi:lightning'
-            case 'kAh':                             return 'mdi:lightning'
-            case UnitOfPower.MILLIWATT:             return 'mdi:power-plug'
-            case UnitOfPower.WATT:                  return 'mdi:power-plug'
-            case UnitOfPower.KILO_WATT:             return 'mdi:power-plug'
-            case UnitOfEnergy.WATT_HOUR:            return 'mdi:lightning'
-            case UnitOfEnergy.KILO_WATT_HOUR:       return 'mdi:lightning'
-            case UnitOfEnergy.MEGA_WATT_HOUR:       return 'mdi:lightning'
-            case UnitOfApparentPower.VOLT_AMPERE:   return 'mdi:power-plug'
-            case UnitOfFrequency.HERTZ:             return None
-
-        match self._entity.datapoint.unit:
-            case 'Seconds':                         return 'mdi:clock'      # timestamp
-            case _:                                 return None
-    
-    
     def get_precision(self) -> int | None:
-        """Convert from HA unit to number of digits displayed"""
+        """
+        Convert from Studer datapoint to number of digits displayed
+        """
 
         match self._entity.datapoint.data_type:
-            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64:
+            case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
+                 StuderDataType.UINT16 | StuderDataType.UINT32 | StuderDataType.UINT64:
+                
                 # We can calculate the suggested precision
                 weight = self._entity.weight * self._unit_weight
                 if weight >= 1.0:
@@ -259,130 +282,97 @@ class StuderEntity(RestoreEntity):
                     return math.ceil(-1*math.log10(weight))
 
             case StuderDataType.FLOAT32 | StuderDataType.FLOAT64:
-                # continue below with precision derived from unit
-                pass  
+                # Use precision derived from unit of measurement
+                return self._unit_precision
 
             case _:
                 return None
-        
-        match self._attr_unit:
-            case UnitOfTemperature.CELSIUS:         return 1    # TEMPERATURE
-            case UnitOfTemperature.FAHRENHEIT:      return 1    # TEMPERATURE
-            case UnitOfTime.DAYS:                   return 0    # DURATION
-            case UnitOfTime.HOURS:                  return 0    # DURATION
-            case UnitOfTime.MINUTES:                return 0    # DURATION
-            case UnitOfTime.SECONDS:                return 0    # DURATION
-            case '%':                               return 0    # BATTERY
-            case UnitOfElectricPotential.VOLT:      return 1    # VOLTAGE
-            case UnitOfElectricCurrent.AMPERE:      return 1    # CURRENT
-            case 'VA':                              return 3    # APPARENT_POWER
-            case 'kVA':                             return 3    # APPARENT_POWER
-            case UnitOfPower.MILLIWATT:             return 3    # POWER
-            case UnitOfPower.WATT:                  return 3    # POWER
-            case UnitOfPower.KILO_WATT:             return 3    # POWER
-            case UnitOfEnergy.WATT_HOUR:            return 3    # ENERGY
-            case UnitOfEnergy.KILO_WATT_HOUR:       return 3    # ENERGY
-            case UnitOfEnergy.MEGA_WATT_HOUR:       return 3    # ENERGY
-            case UnitOfApparentPower.VOLT_AMPERE:   return 3
-            case UnitOfFrequency.HERTZ:             return 1    # FREQUENCY
 
-        match self._entity.datapoint.unit:
-            case 'Seconds':                         return 0    # timestamp
-            case _:                                 return 3
-    
-    
+
     def get_number_device_class(self) -> NumberDeviceClass|None:
-        """Convert from HA unit to NumberDeviceClass"""
-        if self._entity.datapoint.data_type == StuderDataType.ENUM16 or self._entity.datapoint.data_type == StuderDataType.ENUM32:
+        """
+        Convert from Studer datapoint to NumberDeviceClass
+        """
+        if self._entity.datapoint.data_type in [StuderDataType.ENUM16, StuderDataType.ENUM32]:
             return NumberDeviceClass.ENUM
-            
-        match self._attr_unit:
-            case UnitOfTemperature.CELSIUS:         return NumberDeviceClass.TEMPERATURE
-            case UnitOfTemperature.FAHRENHEIT:      return NumberDeviceClass.TEMPERATURE
-            case UnitOfTime.DAYS:                   return NumberDeviceClass.DURATION
-            case UnitOfTime.HOURS:                  return NumberDeviceClass.DURATION
-            case UnitOfTime.MINUTES:                return NumberDeviceClass.DURATION
-            case UnitOfTime.SECONDS:                return NumberDeviceClass.DURATION
-            case '%':                               return NumberDeviceClass.BATTERY
-            case UnitOfElectricPotential.VOLT:      return NumberDeviceClass.VOLTAGE
-            case UnitOfElectricCurrent.AMPERE:      return NumberDeviceClass.CURRENT
-            case 'VA':                              return NumberDeviceClass.APPARENT_POWER
-            case 'kVA':                             return NumberDeviceClass.APPARENT_POWER
-            case UnitOfPower.MILLIWATT:             return NumberDeviceClass.POWER
-            case UnitOfPower.WATT:                  return NumberDeviceClass.POWER
-            case UnitOfPower.KILO_WATT:             return NumberDeviceClass.POWER
-            case UnitOfEnergy.WATT_HOUR:            return NumberDeviceClass.ENERGY
-            case UnitOfEnergy.KILO_WATT_HOUR:       return NumberDeviceClass.ENERGY
-            case UnitOfEnergy.MEGA_WATT_HOUR:       return NumberDeviceClass.ENERGY
-            case UnitOfApparentPower.VOLT_AMPERE:   return None
-            case UnitOfFrequency.HERTZ:             return NumberDeviceClass.FREQUENCY
-            case _:                                 return None
+        else:
+            # Number device class is derived from the unit of measurement
+            return self._unit_ndc
     
     
     def get_sensor_device_class(self) -> SensorDeviceClass|None:
-        """Convert from HA unit to SensorDeviceClass"""
-        if self._entity.datapoint.data_type == StuderDataType.ENUM16 or self._entity.datapoint.data_type == StuderDataType.ENUM32:
+        """
+        Convert from from Studer datapoint to SensorDeviceClass
+        """
+        if self._entity.datapoint.data_type in [StuderDataType.ENUM16, StuderDataType.ENUM32]:
             return SensorDeviceClass.ENUM
-            
-        match self._attr_unit:
-            case UnitOfTemperature.CELSIUS:         return SensorDeviceClass.TEMPERATURE
-            case UnitOfTemperature.FAHRENHEIT:      return SensorDeviceClass.TEMPERATURE
-            case UnitOfTime.DAYS:                   return SensorDeviceClass.DURATION
-            case UnitOfTime.HOURS:                  return SensorDeviceClass.DURATION
-            case UnitOfTime.MINUTES:                return SensorDeviceClass.DURATION
-            case UnitOfTime.SECONDS:                return SensorDeviceClass.DURATION
-            case '%':                               return SensorDeviceClass.BATTERY
-            case UnitOfElectricPotential.VOLT:      return SensorDeviceClass.VOLTAGE
-            case UnitOfElectricCurrent.AMPERE:      return SensorDeviceClass.CURRENT
-            case 'VA':                              return SensorDeviceClass.APPARENT_POWER
-            case 'kVA':                             return SensorDeviceClass.APPARENT_POWER
-            case UnitOfPower.MILLIWATT:             return SensorDeviceClass.POWER
-            case UnitOfPower.WATT:                  return SensorDeviceClass.POWER
-            case UnitOfPower.KILO_WATT:             return SensorDeviceClass.POWER
-            case UnitOfEnergy.WATT_HOUR:            return SensorDeviceClass.ENERGY
-            case UnitOfEnergy.KILO_WATT_HOUR:       return SensorDeviceClass.ENERGY
-            case UnitOfEnergy.MEGA_WATT_HOUR:       return SensorDeviceClass.ENERGY
-            case UnitOfApparentPower.VOLT_AMPERE:   return None
-            case UnitOfFrequency.HERTZ:             return SensorDeviceClass.FREQUENCY
+        else:
+            # Sensor device class is derived from the unit of measurement
+            return self._unit_sdc
 
-        match self._entity.datapoint.unit:
-            case 'Seconds':                         return SensorDeviceClass.TIMESTAMP
 
-    
     def get_sensor_state_class(self) -> SensorStateClass|None:
+        """
+        Convert from Studer datapoint to SensorStateClass
+        """
         # Return StateClass=None for Enum or Label
         if self._entity.datapoint.data_type in [StuderDataType.ENUM16, StuderDataType.ENUM32, StuderDataType.STRING]:
             return None
         
         # Return StateClass=None for params that are a setting, unlikely to change often
-        if self._entity.datapoint.access in [StuderAccess.READ_WRITE, StuderAccess.WRITE]:
+        if self._entity.datapoint.access in [StuderAccess.READ_WRITE, StuderAccess.WRITE] and \
+           self._entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
+           self._entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
+            
             return None
         
-        # Return StateClass=None for some specific entities
-        nrs_none = [
-            99022,  # Xcom
-        ]
+        # Return StateClass=None, Total or Total_Increasing for some specific entities
+        PRODUCTS_NRS_NONE = {
+            PRODUCTS.XCOM: {
+                'xcom': [99022]
+            },
+            PRODUCTS.NEXT: {
+            },
+        }
+        PRODUCTS_NRS_T = {
+            PRODUCTS.XCOM: {
+            },
+            PRODUCTS.NEXT: {
+            },
+        }
+        PRODUCTS_NRS_TI = {
+            PRODUCTS.XCOM: {
+                'xt':  [3078, 3081, 3083],
+                'bsp': [7007, 7008, 7011, 7012, 7013, 7017, 7018, 7019],
+                'vt':  [11006, 11007, 11008, 11009, 11025],
+                'vs':  [15016, 15017, 15018, 15019, 15020, 15021, 15022, 15023, 15024, 15025, 15030, 15042],
+            },
+            PRODUCTS.NEXT: {
+                'acs': [16, 20, 24, 28, 32, 36, 40, 42, 328, 332, 336, 340, 344, 348, 628, 632, 636, 640, 644, 648, 928, 932, 936, 940, 944, 948 ],
+                'bat': [2, 6, 10, 14, 18, 22],
+                'flx': [16, 20, 24, 28, 32, 36, 40, 42, 328, 332, 336, 340, 344, 348, 628, 632, 636, 640, 644, 648, 928, 932, 936, 940, 944, 948 ],
+                'nx1': [1805, 7811, 7815, 7819],
+                'nx3': [4205, 5711, 5715, 5719, 6011, 6015, 6019, 6311, 6315, 6319, 12311, 12315, 12319],
+                'nxg': [905],
+                'sys': [3916, 3920, 2934, 3928, 3932, 3926, 3940, 3942, 4228, 4232, 4236, 4240, 4244, 4248, 4528, 4532, 4536, 4540, 4544, 4548, 4828, 4832, 4836, 4840, 4844, 4848, 5116, 5120, 5124, 5128, 5132, 5136, 5140, 5142, 5416, 5420, 5424, 5428, 5432, 5436, 5440, 5442, 5716, 5720, 5724, 5728, 5732, 5736, 5740, 5742, 6016, 6020, 6024, 6028, 6032, 6036, 6040, 6042, 6316, 6320, 6324, 6328, 6332, 6336, 6340, 6342, 6628, 6632, 6636, 6640, 6644, 6648, 6928, 6932, 6936, 6940, 6944, 6948, 7228, 7232, 7236, 7240, 7244, 7248, 7511, 7515, 7519, 8402, 8406, 8410, 8414, 8418, 8422]
+            }
+        }
+        nrs_none = PRODUCTS_NRS_NONE.get(self._coordinator.product, {}).get(self._entity.datapoint.family_id, [])
+        nrs_t    = PRODUCTS_NRS_T.get(   self._coordinator.product, {}).get(self._entity.datapoint.family_id, [])
+        nrs_ti   = PRODUCTS_NRS_TI.get(  self._coordinator.product, {}).get(self._entity.datapoint.family_id, [])
+
         if self._entity.datapoint.nr in nrs_none:
             return None
-        
-        # Return StateClass=Total or Total_Increasing for some specific entities
-        nrs_t = []
-        nrs_ti = [
-            3078, 3081, 3083, # xt
-            7007, 7008, 7011, 7012, 7013, 7017, 7018, 7019, # bsp
-            11006, 11007, 11008, 11009, 11025, # vt
-            15016, 15017, 15018, 15019, 15020, 15021, 15022, 15023, 15024, 15025, 15030, 15042, # vs
-        ]
-        
+
         if self._entity.datapoint.nr in nrs_t:
             return SensorStateClass.TOTAL
             
         elif self._entity.datapoint.nr in nrs_ti:
             return SensorStateClass.TOTAL_INCREASING
 
-        # Return StateClass=None depending on device-class
-        dcs_none = [SensorDeviceClass.ENERGY, SensorDeviceClass.TIMESTAMP]
-        if self.get_sensor_device_class() in dcs_none:
+        # Return StateClass=None depending on sensor device-class
+        sdc_none = [SensorDeviceClass.ENERGY, SensorDeviceClass.TIMESTAMP]
+        if self.get_sensor_device_class() in sdc_none:
             return None
 
         # All other cases: StateClass=measurement            
@@ -390,44 +380,47 @@ class StuderEntity(RestoreEntity):
     
     
     def get_entity_category(self) -> EntityCategory|None:
-        
-        # Return None for some specific entities we always want as sensors 
-        # even if they would fail some of the tests below
-        nrs_none = [
-        ]
-        if self._entity.datapoint.nr in nrs_none:
-            return None
-            
-        # Return None for params in groups associated with Control
-        # and that a customer is allowed to change.
-        # Leads to the entities being added under 'Controls'
-        levels_control = []
-        if self._entity.datapoint.userlevel_w in levels_control:
-            return None
-        
-        # Return CONFIG for params in groups associated with configuration
-        # Leads to the entities being added under 'Configuration'
-        # Typically intended for restart or update functionality
-        nrs_config = []
-        if self._entity.datapoint.nr in nrs_config:
-            return EntityCategory.CONFIG
-            
-        # Return DIAGNOSTIC for some specific entries associated with others that are DIAGNOSTIC
-        # Leads to the entities being added under 'Diagnostic'
-        nrs_diag = [5012]
-        if self._entity.datapoint.nr in nrs_diag:
-            return EntityCategory.DIAGNOSTIC
+        """
+        Convert from Studer datapoint to EntityCategory (Config, Diagnostics, None)
+        """
         
         # Return None for params that are a setting
         # Leads to the entities being added under 'Controls'
-        if self._entity.datapoint.access in [StuderAccess.READ_WRITE, StuderAccess.WRITE]:
+        if self._entity.datapoint.access in [StuderAccess.READ_WRITE, StuderAccess.WRITE] and \
+           self._entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
+           self._entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
+
             return None
+        
+        # Return CONFIG for some specific entries we want added under 'Configuration'
+        # Typically intended for restart or update functionality
+        PRODUCTS_NRS_CONFIG= {
+            PRODUCTS.XCOM: [],
+            PRODUCTS.NEXT: [],
+        }
+
+        # Return DIAGNOSTIC for some specific entries we want added under 'Diagnostic'
+        PRODUCTS_NRS_DIAGNOSTICS= {
+            PRODUCTS.XCOM: [5012], # UserLevel
+            PRODUCTS.NEXT: [],
+        }
+
+        nrs_config = PRODUCTS_NRS_CONFIG.get(self._coordinator.product, [])
+        if self._entity.datapoint.nr in nrs_config:
+            return EntityCategory.CONFIG
+            
+        nrs_diagnostics = PRODUCTS_NRS_DIAGNOSTICS.get(self._coordinator.product, [])
+        if self._entity.datapoint.nr in nrs_diagnostics:
+            return EntityCategory.DIAGNOSTIC
         
         # Return None for all others
         return None
     
     
     def get_number_step(self) -> list[int]|None:
+        """
+        Return a suggested step size for number entity inputs based on the Studer datapoint
+        """
         match self._attr_unit:
             case 's':
                 candidates = [3600, 60, 1]

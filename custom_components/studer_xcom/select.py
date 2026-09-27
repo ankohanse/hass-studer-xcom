@@ -53,6 +53,7 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
 
         # update creation-time only attributes
+        self._attr_unit_of_measurement = self.get_unit()
         self._attr_options = list(entity.datapoint.enum_options.values())
         
         self._attr_entity_category = self.get_entity_category()
@@ -96,9 +97,6 @@ class StuderSelect(CoordinatorEntity, SelectEntity, StuderEntity):
 
         if force or (self._attr_current_option != attr_val):
             self._attr_current_option = attr_val
-
-            self._attr_unit_of_measurement = self.get_unit()
-            self._attr_icon = self.get_icon()
             changed = True
 
         return changed

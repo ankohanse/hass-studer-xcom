@@ -49,11 +49,12 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         """ Initialize the sensor. """
         CoordinatorEntity.__init__(self, coordinator)
         StuderEntity.__init__(self, coordinator, entity, Platform.SENSOR)
-        
+
         # The unique identifier for this sensor within Home Assistant
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
 
         # update creation-time only attributes
+        self._attr_native_unit_of_measurement = self.get_unit()
         self._attr_state_class = self.get_sensor_state_class()
         self._attr_entity_category = self.get_entity_category()
         self._attr_device_class = self.get_sensor_device_class() 
@@ -64,7 +65,7 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
         # After this constructor ends, base class StuderEntity.async_added_to_hass() will 
         # set the value using the restored value from the last HA run.
         self._update_value(force=True)
-        
+
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -87,7 +88,6 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 attr_precision = self.get_precision()
                 attr_digits = 3
                 attr_val = round(float(self._entity.value) * weight, attr_digits) if self._entity.value is not None and isinstance(self._entity.value,(float,int)) and not math.isnan(self._entity.value) else None
-                attr_unit = self.get_unit()
 
             case StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
                  StuderDataType.UINT16 | StuderDataType.UINT32 | StuderDataType.UINT64:
@@ -95,21 +95,18 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 weight = self._entity.weight * self._unit_weight
                 attr_precision = self.get_precision()
                 attr_val = int(self._entity.value) * weight if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
-                attr_unit = self.get_unit()
-                    
+
             case StuderDataType.ENUM16 | StuderDataType.ENUM32:
                 # Lookup the dict string for the value and otherwise return the value itself
                 weight = None
                 attr_precision = None
                 attr_val = self._entity.datapoint.enum_options.get(str(self._entity.value), self._entity.value) if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
-                attr_unit = None
 
             case StuderDataType.STRING:
                 # return the value itself
                 weight = None
                 attr_precision = None
                 attr_val = self._entity.value if self._entity.value is not None else None
-                attr_unit = None
 
             case _:
                 _LOGGER.warning(f"Unexpected entity format ({self._entity.datapoint.data_type}) for a sensor")
@@ -132,10 +129,7 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
 
             self._attr_state = attr_val
             self._attr_native_value = attr_val
-            self._attr_native_unit_of_measurement = attr_unit
             self._attr_suggested_display_precision = attr_precision
-            
-            self._attr_icon = self.get_icon()
             changed = True
         
         return changed
