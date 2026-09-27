@@ -63,6 +63,7 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         self.entity_id = ENTITY_ID_FORMAT.format(entity.object_id)
 
         # update creation-time only attributes
+        self._attr_unit_of_measurement = self.get_unit()
         self._attr_entity_category = self.get_entity_category()
         self._attr_device_class = None
 
@@ -121,9 +122,6 @@ class StuderSwitch(CoordinatorEntity, SwitchEntity, StuderEntity):
         if force or (self._attr_is_on != attr_is_on):
             self._attr_is_on = attr_is_on
             self._attr_state = attr_state
-            
-            self._attr_unit_of_measurement = self.get_unit()
-            self._attr_icon = self.get_icon()
             changed = True
             
         return changed

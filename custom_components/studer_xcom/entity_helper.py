@@ -104,6 +104,7 @@ class StuderEntityHelper:
         
         # Is it a button entity and do we have enough rights to write?
         if entity.datapoint.access in [StuderAccess.WRITE] and \
+           entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
            entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
             
             match entity.datapoint.data_type:
@@ -116,7 +117,7 @@ class StuderEntityHelper:
 
         # Is it a button/switch/select/number/time entity and do we have enough rights to read and write? 
         elif entity.datapoint.access in [StuderAccess.READ_WRITE] and \
-             entity.datapoint.userlevel_r <= StuderUserLevel.EXPERT and \
+             entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
              entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
 
             match entity.datapoint.data_type:
@@ -153,6 +154,7 @@ class StuderEntityHelper:
         # Is it a (binary) sensor entity, and do we have enough rights to read?
         # Also handles fallthrough from previous access tests.
         elif entity.datapoint.access in [StuderAccess.READ, StuderAccess.READ_WRITE] and \
+             entity.datapoint.userlevel_r >= StuderUserLevel.VIEWONLY and \
              entity.datapoint.userlevel_r <= StuderUserLevel.EXPERT:
 
             match entity.datapoint.data_type:

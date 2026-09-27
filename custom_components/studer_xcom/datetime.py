@@ -113,8 +113,6 @@ class StuderDateTime(CoordinatorEntity, DateTimeEntity, StuderEntity):
         if force or (self._attr_native_value != attr_val):
             self._attr_state = attr_val
             self._attr_native_value = attr_val
-
-            self._attr_icon = self.get_icon()
             changed = True
 
         return changed    
