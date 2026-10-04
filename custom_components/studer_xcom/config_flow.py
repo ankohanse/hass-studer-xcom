@@ -54,6 +54,8 @@ from .const import (
     DEFAULT_USER_LEVEL,
     DEFAULT_POLLING_INTERVAL,
     DOMAIN,
+    NEXT_DATASET_FLAGS,
+    NEXT_FAMILIES_FLAGS,
     PRODUCTS,
     PRODUCTS_NUMBERS_URL,
     PRODUCTS_README_URL,
@@ -363,7 +365,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
     async def async_step_next_gateway(self, user_input: dict[str,Any] | None = None) -> FlowResult:
         """
-        Step 1: to get the NextGateway client configuration
+        Step 1: to get the Next Gateway client configuration
         """        
         if user_input is not None:
             # Get form data
@@ -389,7 +391,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         # Show the form to configure the port
         _LOGGER.debug(f"Step next_gateway - show form")
-        
+
         return self.async_show_form(
             step_id = "next_gateway", 
             data_schema = vol.Schema({
@@ -397,8 +399,8 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 vol.Required(CONF_NEXT_GW_PORT, description={"suggested_value": self._next_gw_port}): cv.port
             }),
             description_placeholders = {
-                "next_config_url": f"[NextGateway Web Config]({self._next_webconfig_url})" if self._next_webconfig_url else "NextGateway Web Config",
-                "next_readme_url": f"[NextGateway config.md]({NEXT_README_URL})",
+                "next_config_url": f"[Next Gateway Web Config]({self._next_webconfig_url})" if self._next_webconfig_url else "Next Gateway Web Config",
+                "next_readme_url": f"[Next Gateway config.md]({NEXT_README_URL})",
                 "readme_url": INTEGRATION_README_URL
             },
             errors = self._errors,
@@ -497,16 +499,16 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                         _LOGGER.info(f"Could not determine Moxa Web Config url")
 
                 case PRODUCTS.NEXT:
-                    _LOGGER.info(f"Discover NextGateway Web Config")
+                    _LOGGER.info(f"Discover Next Gateway Web Config")
                     self._next_webconfig_url = await AsyncNextDiscover.discover_gateway_webconfig(self._next_webconfig_url)
                     if self._next_webconfig_url:
-                        _LOGGER.info(f"Discovered NextGateway Web Config at {self._next_webconfig_url}")
+                        _LOGGER.info(f"Discovered Next Gateway Web Config at {self._next_webconfig_url}")
 
                         # If no host was set yet then derive probable host ip from the webconfig url
                         if not self._next_gw_host:
                             self._next_gw_host = self._next_webconfig_url.replace("http://", "")
                     else:
-                        _LOGGER.info(f"Could not determine NextGateway Web Config url")
+                        _LOGGER.info(f"Could not determine Next Gateway Web Config url")
 
                 case _:
                     _LOGGER.warning(f"Step progress gateway webconfig - incorrect value for product: {self._product}")
@@ -548,9 +550,8 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                     next_gw_host=self._next_gw_host, 
                     next_gw_port=self._next_gw_port,
                 )
-                #AJH flag to add test family and datapoint
-                self._families = await NextDeviceFamilies.async_get_instance(flags={ NextDeviceFamiliesFlag.ADD_TEST: True })
-                self._dataset = await NextDataset.async_get_instance(flags={ NextDatasetFlag.ADD_TEST: True })
+                self._families = await NextDeviceFamilies.async_get_instance(flags=NEXT_FAMILIES_FLAGS)
+                self._dataset = await NextDataset.async_get_instance(flags=NEXT_DATASET_FLAGS)
                 self._discover = AsyncNextDiscover(self._coordinator._api, self._dataset)
 
             case _:
@@ -574,7 +575,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
         
     
     async def _async_gw_connect(self, is_task=True):
-        """Test the port by connecting to the Studer Xcom client / NextGateway"""
+        """Test the port by connecting to the Studer Xcom client / Next Gateway"""
 
         try:
             _LOGGER.info("Discover gateway connection")
@@ -588,7 +589,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             else:
                 _LOGGER.info(f"Could not connect to Studer gateway.")
                 self._errors[CONF_XCOM_PORT] = f"Xcom gateway did not connect; make sure the Home Assistant IP address and this port are configured via the local Xcom Moxy Web Config"
-                self._errors[CONF_NEXT_GW_HOST] = f"Could not connect to NextGateway; make sure the specified gateway host and port match the setting in the NextGateway Web Config"                        
+                self._errors[CONF_NEXT_GW_HOST] = f"Could not connect to Next Gateway; make sure the specified gateway host and port match the setting in the Next Gateway Web Config"                        
 
         except Exception as e:
             _LOGGER.warning(f"Exception during discover of gateway connection: {e}")
@@ -609,7 +610,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
     
     async def _async_gw_details(self, is_task=True):
-        """Discover information about the Studer Xcom client / NextGateway"""
+        """Discover information about the Studer Xcom client / Next Gateway"""
 
         try:
             _LOGGER.info("Discover gateway details")

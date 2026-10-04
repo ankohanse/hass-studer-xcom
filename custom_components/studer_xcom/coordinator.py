@@ -46,6 +46,8 @@ from .const import (
     NAME,
     MANUFACTURER,
     COORDINATOR,
+    NEXT_DATASET_FLAGS,
+    NEXT_FAMILIES_FLAGS,
     PREFIX_ID,
     PREFIX_NAME,
     PRODUCTS,
@@ -475,9 +477,8 @@ class StuderCoordinator(DataUpdateCoordinator[dict[str,StuderEntityData]]):
 
             case PRODUCTS.NEXT:
                 # Load NextDataset from file(s)
-                #AJH flag to add test family and datapoint
-                families = await NextDeviceFamilies.async_get_instance(flags={ NextDeviceFamiliesFlag.ADD_TEST: True })
-                dataset = await NextDataset.async_get_instance(flags={ NextDatasetFlag.ADD_TEST: True })
+                families = await NextDeviceFamilies.async_get_instance(flags=NEXT_FAMILIES_FLAGS)
+                dataset = await NextDataset.async_get_instance(flags=NEXT_DATASET_FLAGS)
 
             case _:
                 _LOGGER.warning(f"Unknown product '{self._product}' found during creation of entity map")
