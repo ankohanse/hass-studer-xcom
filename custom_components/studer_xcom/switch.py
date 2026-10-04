@@ -4,16 +4,14 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.components.switch import ENTITY_ID_FORMAT
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
+from homeassistant.const import STATE_ON, STATE_OFF
 from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from homeassistant.const import (
-    STATE_ON,
-    STATE_OFF,
-)
+from pystudershared import StuderDataType
 
 from .const import (
     DOMAIN,
@@ -29,9 +27,6 @@ from .entity_base import (
 )
 from .entity_helper import (
     StuderEntityHelperFactory,
-)
-from pystudernext import (
-    StuderDataType,
 )
 
 

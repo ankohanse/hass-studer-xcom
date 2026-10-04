@@ -11,6 +11,8 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from pystudershared import StuderDataType
+
 from .const import (
     DOMAIN,
 )
@@ -23,9 +25,6 @@ from .entity_base import (
 )
 from .entity_helper import (
     StuderEntityHelperFactory,
-)
-from pystudernext import (
-    StuderDataType,
 )
 
 
@@ -97,13 +96,19 @@ class StuderSensor(CoordinatorEntity, SensorEntity, StuderEntity):
                 attr_val = int(self._entity.value) * weight if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
 
             case StuderDataType.ENUM16 | StuderDataType.ENUM32:
-                # Lookup the dict string for the value and otherwise return the value itself
+                # The enum value was already resolved, so we can just use it
                 weight = None
                 attr_precision = None
-                attr_val = self._entity.datapoint.enum_options.get(str(self._entity.value), self._entity.value) if self._entity.value is not None and isinstance(self._entity.value,int) and not math.isnan(self._entity.value) else None
+                attr_val = self._entity.value if self._entity.value is not None else None
+
+            case StuderDataType.BITFIELD:
+                # The bitfield values were already resolved, so we just join the values into a single string
+                weight = None
+                attr_precision = None
+                attr_val = '; '.join(self._entity.value) if self._entity.value is not None else None
 
             case StuderDataType.STRING:
-                # return the value itself
+                # Use the string value itself
                 weight = None
                 attr_precision = None
                 attr_val = self._entity.value if self._entity.value is not None else None

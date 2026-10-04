@@ -15,6 +15,8 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from pystudershared import StuderDataType
+
 from .const import (
     DOMAIN,
     BINARY_SENSOR_VALUES_ON,
@@ -31,9 +33,6 @@ from .entity_helper import (
     StuderEntityHelperFactory,
 )
 
-from pystudernext import (
-    StuderDataType,
-)
 
 
 _LOGGER = logging.getLogger(__name__)

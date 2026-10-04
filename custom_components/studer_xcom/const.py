@@ -7,10 +7,9 @@ from typing import Final
 
 from homeassistant.const import Platform
 
-from pystuderxcom import (
-    StuderUserLevel,
-    XcomVoltage,
-)
+from pystudershared import StuderUserLevel
+from pystuderxcom import XcomVoltage
+
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 

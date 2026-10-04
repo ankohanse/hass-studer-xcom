@@ -25,6 +25,8 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.const import UnitOfTime
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 
+from pystudershared import StuderAccess, StuderDataType, StuderUserLevel
+
 from .const import (
     ATTR_STUDER_FLASH_STATE,
     ATTR_STUDER_RAM_STATE,
@@ -36,11 +38,6 @@ from .const import (
 from .coordinator import (
     StuderCoordinator,
     StuderEntityData
-)
-from pystudernext import (
-    StuderAccess,
-    StuderDataType,
-    StuderUserLevel,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -316,7 +313,7 @@ class StuderEntity(RestoreEntity):
         Convert from Studer datapoint to SensorStateClass
         """
         # Return StateClass=None for Enum or Label
-        if self._entity.datapoint.data_type in [StuderDataType.ENUM16, StuderDataType.ENUM32, StuderDataType.STRING]:
+        if self._entity.datapoint.data_type in [StuderDataType.ENUM16, StuderDataType.ENUM32, StuderDataType.BITFIELD, StuderDataType.STRING]:
             return None
         
         # Return StateClass=None for params that are a setting, unlikely to change often

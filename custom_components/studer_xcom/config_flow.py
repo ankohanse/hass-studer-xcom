@@ -69,7 +69,7 @@ from .coordinator import (
     StuderGatewayConfig,
     StuderDeviceConfig,
 )
-from pystuderxcom import (
+from pystudershared import (
     AsyncStuderDiscover,
     StuderDataset,
     StuderDatapoint,
