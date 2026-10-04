@@ -32,21 +32,12 @@ This device depends on having a Studer Xcom-LAN (i.e. an Xcom-232i and a Moxa et
 
 The Studer Xcom-LAN is able to simultaneously send data to the Studer online portal as well as sending data to this integration.
 
+A detailed description of the required settings can be found in document [Xcom-LAN config.md](Xcom-LAN%20config.md)
+
 ## Next product family
-This library depends on the Next3/Next1 configured to have modbus TCP enabled:
+This library depends on the Next3/Next1 configured to have modbus TCP enabled.
 
-- Open the Studer Next Web Config
-- Go to 'Monitoring'
-- To the right of 'Modbus' press the 'Config' button
-- Turn 'Modbus mode' On
-- Use the following properties:
-    * Modbus mode: TCP
-    * Base address: 0
-- Make a note of the other properties:
-    * IP address (address of the Next3 or Next1)
-    * Port (default is 502)
-
-After a few seconds, the Studer modbus configuration should indicate status: 'Ready and listening'.
+A detailed description of the required settings can be found in document [Next-Gateway config.md](Next-Gateway%20config.md)
 
 # Installation
 
@@ -80,12 +71,14 @@ This custom integration is available via HACS (Home Assistant Community Store).
     │   ├── coordinator.py
     │   ├── diagnostics.py
     │   ├── entity_base.py
+    │   ├── entity_helper.py
     │   ├── manifest.json
     │   ├── number.py
     │   ├── select.py
     │   ├── sensor.py
     │   ├── strings.json
-    │   └── switch.py
+    │   ├── switch.json
+    │   └── time.py
     ```
 
 2. Restart Home Assistant.
@@ -126,12 +119,12 @@ In that case, check the configuration of the Xcom-LAN device as described in doc
 
 ## Step 3b - Next gateway details
 
-Enter the properties are required to connect to the NExt gateway on the local network
+Enter the properties are required to connect to the Next gateway on the local network
   
 ![setup_step_3b](documentation/setup_gateway_next.png)
 
 If the discovery of Studer devices in step 4 fails then the configuration returns to the screen of step 3b.
-In that case, check the configuration of the Next Gateway as described in the 'prerequisites' section above
+In that case, check the configuration of the Next Gateway as described in document [Next-Gateway config.md](Next-Gateway%20config.md)
 
 ## Step 4 - Device discovery
 

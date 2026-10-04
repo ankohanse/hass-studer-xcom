@@ -42,9 +42,6 @@ from .const import (
     PRODUCTS,
     XCOM_TITLE_FMT,
 )
-from .services import (
-    async_setup_services,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,10 +100,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     # Cleanup entities and devices
     await coordinator.async_cleanup_entities(config_entry)
     await coordinator.async_cleanup_devices(config_entry)
-
-    # Setup services
-    # Disabled for now as only Xcom supports it
-    # await async_setup_services(hass, config_entry)
 
     # Reload entry when it is updated
     config_entry.async_on_unload(config_entry.add_update_listener(_async_update_listener))

@@ -24,7 +24,7 @@
         },
         "data_description": {
           "next_gw_host": "Enter the host name or IP address of the Next Gateway",
-          "next_gw_port": "Enter the port of the Next Gateway; usually this is port 502"
+          "next_gw_port": "Use the port as set in the local {next_config_url}, usually port 502.\n\nCheck document {next_readme_url} for details."
         }
       },
       "progress": {

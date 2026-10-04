@@ -9,9 +9,11 @@ from homeassistant.const import Platform
 
 from pystudershared import StuderUserLevel
 from pystuderxcom import XcomVoltage
+from pystudernext import NextDatasetFlag, NextDeviceFamiliesFlag
 
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
+
 
 # Base component constants
 DOMAIN = "studer_xcom"
@@ -73,7 +75,6 @@ DEFAULT_NEXT_FAMILY_NUMBERS = {
     "pwr": [300,302,304,324,326,328],
     "tst": [840,841,842,843,844]
 }
-
 DEFAULT_PRODUCT_FAMILY_NUMBERS = {
     PRODUCTS.XCOM: DEFAULT_XCOM_FAMILY_NUMBERS,
     PRODUCTS.NEXT:    DEFAULT_NEXT_FAMILY_NUMBERS,
@@ -98,7 +99,7 @@ CONF_CLIENT_INFO = "client_info" # depricates, replaced by CONF_GATEWAY_INFO
 INTEGRATION_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/README.md"
 XCOM_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/Xcom-LAN%20config.md"
 XCOM_APPENDIX_URL = "https://github.com/ankohanse/pystuderxcom/blob/master/documentation/Technical%20specification%20-%20Xtender%20serial%20protocol%20appendix%20-%201.6.38.pdf"
-NEXT_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/NextGateway%20config.md"
+NEXT_README_URL = "https://github.com/ankohanse/hass-studer-xcom/blob/master/Next-Gateway%20config.md"
 NEXT_MODBUS_APPENDIX_URL = "https://github.com/ankohanse/pystudernext/blob/master/documentation/Technical%20specification%20%E2%80%93%20Next%20Modbus%20appendix%20v10.73.pdf"
 
 PRODUCTS_README_URL = {
@@ -146,3 +147,12 @@ CACHE_WRITE_PERIOD = 60*60 # seconds
 
 # Diagnostics
 DIAGNOSTICS_REDACT = { 'conf_secret1', 'conf_secret2' }
+
+# Testing
+# (uncomment if needed)
+NEXT_FAMILIES_FLAGS = { NextDeviceFamiliesFlag.ADD_TEST: True }
+NEXT_DATASET_FLAGS = { NextDatasetFlag.ADD_TEST: True }
+#
+# NEXT_FAMILIES_FLAGS = {}
+# NEXT_DATASET_FLAGS = {}
+

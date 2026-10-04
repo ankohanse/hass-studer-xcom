@@ -12,7 +12,7 @@ To open the web-config, click on the link that was detect during the first step 
 
 Alternatively, follow the steps as described in section [Device Search Utiliy](#device-search-utility)
 
-![setup_step_1](documentation/setup_client_moxa.png)
+![setup_step_1](documentation/setup_gateway_xcom2.png)
 
 Use the configuration settings described below to be able to connect both to the Studer-Innotec servers as well as to the Home Assistant integration.
 
@@ -50,4 +50,4 @@ If the first step of the integration step was not able to locate the link to the
 
       ![dsu_search_results](documentation/DSU_results.png)
 
-3. Continue as described in section [Moxa configuration](#moxa-configuration)
+3. Continue as described in section [Moxa Web Config](#moxa-web-config)
