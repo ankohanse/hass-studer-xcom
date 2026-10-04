@@ -61,7 +61,7 @@ from .const import (
     REQ_TIMEOUT,
     CACHE_WRITE_PERIOD,
 )
-from pystudernext import (  # pystudernext and pystuderxcom both contain exactly the same shared studer classes
+from pystudershared import (
     AsyncStuderApi,
     StuderDataset,
     StuderDatapoint,

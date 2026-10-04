@@ -9,9 +9,7 @@ from homeassistant.core import callback
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from homeassistant.const import (
-    CONF_PORT,
-)
+from pystudershared import StuderAccess, StuderDataType, StuderUserLevel
 
 from .const import (
     BINARY_SENSOR_VALUES_ON,
@@ -25,11 +23,6 @@ from .coordinator import (
     StuderCoordinatorFactory,
     StuderCoordinator,
     StuderEntityData,
-)
-from pystudernext import (
-    StuderAccess,
-    StuderDataType,
-    StuderUserLevel,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -116,9 +109,9 @@ class StuderEntityHelper:
                     return None
 
         # Is it a button/switch/select/number/time entity and do we have enough rights to read and write? 
-        elif entity.datapoint.access in [StuderAccess.READ_WRITE] and \
-             entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
-             entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
+        if entity.datapoint.access in [StuderAccess.READ_WRITE] and \
+           entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
+           entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
 
             match entity.datapoint.data_type:
                 case StuderDataType.BOOL:
@@ -146,16 +139,20 @@ class StuderEntityHelper:
 
                 case StuderDataType.FLOAT32 | StuderDataType.FLOAT64:
                     return Platform.NUMBER
-                
+
+                case StuderDataType.BITFIELD | StuderDataType.STRING:
+                    # Not supported as writable. Continue below to turn it into a read-only sensor
+                    pass
+
                 case _:
                     _LOGGER.warning(f"Unexpected entity format ({entity.datapoint.data_type}) in _get_entity_platform")
                     return None
 
         # Is it a (binary) sensor entity, and do we have enough rights to read?
         # Also handles fallthrough from previous access tests.
-        elif entity.datapoint.access in [StuderAccess.READ, StuderAccess.READ_WRITE] and \
-             entity.datapoint.userlevel_r >= StuderUserLevel.VIEWONLY and \
-             entity.datapoint.userlevel_r <= StuderUserLevel.EXPERT:
+        if entity.datapoint.access in [StuderAccess.READ, StuderAccess.READ_WRITE] and \
+           entity.datapoint.userlevel_r >= StuderUserLevel.VIEWONLY and \
+           entity.datapoint.userlevel_r <= StuderUserLevel.EXPERT:
 
             match entity.datapoint.data_type:
                 case StuderDataType.BOOL:
@@ -173,6 +170,7 @@ class StuderEntityHelper:
                 case StuderDataType.FLOAT32 | StuderDataType.FLOAT64 | \
                      StuderDataType.INT16 | StuderDataType.INT32 | StuderDataType.INT64 | \
                      StuderDataType.UINT16 | StuderDataType.UINT32 | StuderDataType.UINT64 | \
+                     StuderDataType.BITFIELD | \
                      StuderDataType.STRING:
 
                     # General sensor

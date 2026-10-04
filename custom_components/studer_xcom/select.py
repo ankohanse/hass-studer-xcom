@@ -10,6 +10,8 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from pystudershared import StuderDataType
+
 from .const import (
     DOMAIN,
 )
@@ -22,9 +24,6 @@ from .entity_base import (
 )
 from .entity_helper import (
     StuderEntityHelperFactory,
-)
-from pystudernext import (
-    StuderDataType,
 )
 
 

@@ -12,6 +12,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from datetime import time
 
+from pystudershared import StuderDataType
+
 from .const import (
     DOMAIN,
 )
@@ -24,9 +26,6 @@ from .entity_base import (
 )
 from .entity_helper import (
     StuderEntityHelperFactory,
-)
-from pystudernext import (
-    StuderDataType,
 )
 
 
