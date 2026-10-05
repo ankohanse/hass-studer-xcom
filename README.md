@@ -100,19 +100,22 @@ This is a fully automatic step, no user input needed.
 
 Do not run Configuration via a Nabu Casa cloud connection, as that will lead to the process getting stuck at the end of this step (known issue). Running Configuration from within the local network does not have this issue. See section [Knowledge base](#knowledge-base) for more information.
 
-![setup_step_1](documentation/setup_discover_webconfig.png)
+> &nbsp;
+> ![setup_step_1](documentation/setup_discover_webconfig.png)
 
 ## Step 2 - Product family
 
 Choose the product family that applies to your device(s).
 
-![setup_step_2](documentation/setup_product_family.png)
+> &nbsp;
+> ![setup_step_2](documentation/setup_product_family.png)
 
 ## Step 3a - Xcom gateway details
 
 Enter the properties are required to connect to the Xcom gateway on the local network.
-  
-![setup_step_3a](documentation/setup_gateway_xcom.png)
+
+> &nbsp;
+> ![setup_step_3a](documentation/setup_gateway_xcom.png)
 
 If the discovery of Studer devices in step 4 fails then the configuration returns to the screen of step 3a.
 In that case, check the configuration of the Xcom-LAN device as described in document [Xcom-LAN config.md](Xcom-LAN%20config.md)
@@ -120,8 +123,9 @@ In that case, check the configuration of the Xcom-LAN device as described in doc
 ## Step 3b - Next gateway details
 
 Enter the properties are required to connect to the Next gateway on the local network
-  
-![setup_step_3b](documentation/setup_gateway_next.png)
+
+> &nbsp;
+> ![setup_step_3b](documentation/setup_gateway_next.png)
 
 If the discovery of Studer devices in step 4 fails then the configuration returns to the screen of step 3b.
 In that case, check the configuration of the Next Gateway as described in document [Next-Gateway config.md](Next-Gateway%20config.md)
@@ -131,19 +135,22 @@ In that case, check the configuration of the Next Gateway as described in docume
 The integration will connect to the gateway. Next, it will try to detect any Studer devices connected to the gateway.
 This is a fully automatic step, no user input needed.
 
-![setup_step_4](documentation/setup_discover_devices.png)
+> &nbsp;
+> ![setup_step_4](documentation/setup_discover_devices.png)
 
 ## Step 5 - Finish
 
 After succcessful setup, all dicovered devices from the Studer installation should show up.
 
-![setup_step_5](documentation/setup_success.png)
+> &nbsp;
+> ![setup_step_5](documentation/setup_success.png)
 
 On the individual device pages, the hardware related device information is presented. Also displayed here are all default created entities, typically grouped into main entity sensors, controls and diagnostics.
 
 Any entities that you do not need can be manually disabled using the Home Assistant GUI. Or use the steps described under [Custom Configuration](#custom-configuration) to add or remove entities.
 
-![controller_detail](documentation/integration_xt1.png)
+> &nbsp;
+> ![controller_detail](documentation/integration_xt1.png)
 
 
 # Custom configuration
@@ -171,7 +178,8 @@ In this screen, the actions dropdown box allows you to:
 
 Once you are satisfied with the presented entity numbers, select action 'Done' and press submit to create all entities (sensors, switches, numbers, etc).
 
-![config_step_2](documentation/setup_numbers.png)
+> &nbsp;
+> ![config_step_2](documentation/setup_numbers.png)
 
 A full list of available numbers can be found in the libraries used by this integration: 
 - [pystuderxcom/xcom_datapoints_240v.json](https://github.com/ankohanse/pystuderxcom/blob/master/src/pystuderxcom/xcom_datapoints_240v.json)
@@ -199,7 +207,9 @@ Or it can be downloaded from Studer-Innotec:
 Restrict yourself to only those parameters you actually use and try to keep the time needed for fetching Studer data below 20 seconds. While in debug mode (see below), keep an eye on the log (Settings -> System -> Log -> Load Full Logs ),
 and search for lines looking like:
 
-`2024-08-26 09:57:46.383 DEBUG (MainThread) [custom_components.studer_xcom.coordinator] Finished fetching Studer via xyz data in 1.450 seconds (success: True)`
+```
+2024-08-26 09:57:46.383 DEBUG (MainThread) [custom_components.studer_xcom.coordinator] Finished fetching Studer via xyz data in 1.450 seconds (success: True)
+```
 
 Note: the first data retrieval after a restart might take longer than subsequent data retrievals.
 

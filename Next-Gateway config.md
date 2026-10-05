@@ -10,7 +10,8 @@ The Studer Next Gateway is able to simultaneously send data to the Studer online
 The Next Gateway Web-Config can be used to setup and configure the Studer modbus server.
 To open the web-config, click on the link that was detect during the first step of the integration configuration
 
-![setup_step_1](documentation/setup_gateway_next2.png)
+> &nbsp;
+> ![setup_step_1](documentation/setup_gateway_next2.png)
 
 Use the configuration settings described below to be able to connect both to the Studer-Innotec servers as well as to the Home Assistant integration.
 
@@ -27,5 +28,8 @@ Use the configuration settings described below to be able to connect both to the
 
 After a few seconds, the Studer modbus configuration should indicate Modbus TCP server status: 'Ready and listening'.
 
-  ![next_gateway_settings1](documentation/next_gateway_settings1.png)
-  ![next_gateway_settings2](documentation/next_gateway_settings2.png)
+> &nbsp;
+> ![next_gateway_settings1](documentation/next_gateway_settings1.png) 
+
+> &nbsp;
+> ![next_gateway_settings2](documentation/next_gateway_settings2.png)
