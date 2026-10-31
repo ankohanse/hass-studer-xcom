@@ -17,7 +17,7 @@ The custom component is comfirmed to support:
 - BMS, RCC-02, RCC-03
 - VarioString, VarioTrack
 
-It should also support:
+It should also support (in Beta version, may still have some issues):
 - Next1, Next3
 
 For Xtender products, this custom component provides a more reliable alternative to polling data from the Studer Portal via http as described in [Read Studer Parameters via Xcom-LAN and Rest Sensor](https://community.home-assistant.io/t/read-studer-parameters-via-xcom-lan-and-rest-sensor/597933). 
@@ -200,7 +200,7 @@ Or it can be downloaded from Studer-Innotec:
 - Go to Support -> Downloads -> Openstuder
 - Download 'communication protocol xcom 232i' for Xtender, VarioString or VarioTrack devices, 
 - Download 'communication protocol next modbus' for Next1 or Next3 devices
- - In the downloaded zip open the file marked as 'appendix'
+- In the downloaded zip open the file marked as 'appendix'
 
 # Entity retrieval limits
 

@@ -10,5 +10,5 @@
     "issue_tracker": "https://github.com/ankohanse/hass-studer-xcom/issues",
     "loggers": ["custom_components.studer_xcom"],
     "requirements": ["pystuderxcom==3.7.0", "pystudernext==1.1.0", "pystudershared==1.0.0"],
-    "version": "2026.10.1-beta.1"
+    "version": "2026.11.1"
   }   
