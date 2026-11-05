@@ -40,57 +40,11 @@ A detailed description of the required settings can be found in document [Next-G
 
 # Installation
 
-## HACS
-
-This custom integration is available via HACS (Home Assistant Community Store).
-1. In the HACS page, seach for 'Studer'.
+This custom integration is available via Home Assistant Marketplace.
+1. Go to Settings → Marketplace and search for 'studer'.
 2. Click on the found item to display this readme (this page).
-3. At the bottom of the page press 'Download'
-4. Restart Home Assistant.
-5. Follow the UI based [Initial Configuration](#initial-configuration)
-
-
-## Manual install
-
-1. Under the `<config directory>/custom_components/` directory create a directory called `studer_xcom`. 
-2. Copy all files in this github repository in the `/custom_components/studer_xcom/` folder into the new `<config directory>/custom_components/studer_xcom/` directory you just created.
-
-    This is how your custom_components directory should look like:
-
-    ```bash
-    custom_components
-    ├── studer_xcom
-    │   ├── translations
-    │   │   └── en.json
-    │   ├── __init__.py
-    │   ├── binary_sensor.py
-    │   ├── button.py
-    │   ├── config_flow.py
-    │   ├── const.py
-    │   ├── coordinator.py
-    │   ├── diagnostics.py
-    │   ├── entity_base.py
-    │   ├── entity_helper.py
-    │   ├── manifest.json
-    │   ├── number.py
-    │   ├── select.py
-    │   ├── sensor.py
-    │   ├── strings.json
-    │   ├── switch.json
-    │   └── time.py
-    ```
-
-2. Restart Home Assistant.
-3. Follow the UI based [Initial Configuration](#initial-configuration)
-
-
-# Initial Configuration
-
-To start the setup of this custom integration:
-- go to Home Assistant's Integration Dashboard
-- Press 'Add Integration'
-- Search for 'Studer-Innotec'
-- Follow the prompts in the configuration steps
+3. At the top of the page press 'Install'
+5. Follow the displayed setup steps
 
 ## Step 1 - Gateway web-config discovery
 
