@@ -57,6 +57,7 @@ from .const import (
     NEXT_DATASET_FLAGS,
     NEXT_FAMILIES_FLAGS,
     PRODUCTS,
+    PRODUCTS_MAX_USER_LEVEL,
     PRODUCTS_NUMBERS_URL,
     PRODUCTS_README_URL,
     INTEGRATION_README_URL,
@@ -212,6 +213,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         level_str = options.get(CONF_USER_LEVEL, None) or configs.get(CONF_USER_LEVEL, str(DEFAULT_USER_LEVEL))
         self._user_level = next( (level for level in StuderUserLevel if level_str.upper()==str(level)), DEFAULT_USER_LEVEL)
+        self._user_level_max = PRODUCTS_MAX_USER_LEVEL.get(self._product, StuderUserLevel.EXPERT)
 
         self._polling_interval = options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)      
 
@@ -992,7 +994,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             if device is not None and len(numbers) > 0:
                 try:
                     validate = await self._valid_numbers(device.code, device.family_id)
-                    add_numbers = validate(numbers, check_family=True, check_level=False)
+                    add_numbers = validate(numbers, check_family=True, check_level=False, check_level_max=True)
 
                     dev_numbers = set(device.numbers or [])
                     dev_numbers.update(add_numbers)
@@ -1054,7 +1056,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             if device is not None and len(numbers) > 0:
                 try:
                     validate = await self._valid_numbers(device.code, device.family_id)
-                    del_numbers = validate(numbers, check_family=False, check_level=False)
+                    del_numbers = validate(numbers, check_family=False, check_level=False, check_level_max=False)
 
                     device.numbers = [n for n in device.numbers if n not in del_numbers]
 
@@ -1097,7 +1099,7 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
 
         family = self._families.get_by_id(family_id)
         
-        def validate(value: Any, check_family=True, check_level=True) -> list[int]:
+        def validate(value: Any, check_family=True, check_level=True, check_level_max=True) -> list[int]:
 
             if not isinstance(value, list):
                 raise vol.Invalid("Expected a list")
@@ -1124,6 +1126,10 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
                 if check_level:
                     if param.userlevel_r > self._user_level:
                         raise vol.Invalid(f"Number {nr} is not allowed with user level {self._user_level}")
+
+                if check_level_max:
+                    if param.userlevel_r > self._user_level_max:
+                        raise vol.Invalid(f"Number {nr} is not allowed, maximum user level is {self._user_level_max}")
 
                 result.append(nr)
 

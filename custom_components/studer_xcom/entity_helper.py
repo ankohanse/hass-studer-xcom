@@ -15,6 +15,7 @@ from .const import (
     BINARY_SENSOR_VALUES_ON,
     BINARY_SENSOR_VALUES_OFF,
     BINARY_SENSOR_VALUES_ALL,
+    PRODUCTS_MAX_USER_LEVEL,
     SWITCH_VALUES_ON,
     SWITCH_VALUES_OFF,
     SWITCH_VALUES_ALL,
@@ -94,11 +95,13 @@ class StuderEntityHelper:
         """
         Determine what platform an entry should be added into
         """
+        userlevel_view = StuderUserLevel.VIEWONLY
+        userlevel_max = PRODUCTS_MAX_USER_LEVEL.get(self._coordinator.product, StuderUserLevel.EXPERT)
         
         # Is it a button entity and do we have enough rights to write?
         if entity.datapoint.access in [StuderAccess.WRITE] and \
-           entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
-           entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
+           entity.datapoint.userlevel_w > userlevel_view and \
+           entity.datapoint.userlevel_w <= userlevel_max:
             
             match entity.datapoint.data_type:
                 case StuderDataType.SIGNAL:
@@ -110,8 +113,8 @@ class StuderEntityHelper:
 
         # Is it a button/switch/select/number/time entity and do we have enough rights to read and write? 
         if entity.datapoint.access in [StuderAccess.READ_WRITE] and \
-           entity.datapoint.userlevel_w > StuderUserLevel.VIEWONLY and \
-           entity.datapoint.userlevel_w <= StuderUserLevel.EXPERT:
+           entity.datapoint.userlevel_w > userlevel_view and \
+           entity.datapoint.userlevel_w <= userlevel_max:
 
             match entity.datapoint.data_type:
                 case StuderDataType.BOOL:
@@ -151,8 +154,8 @@ class StuderEntityHelper:
         # Is it a (binary) sensor entity, and do we have enough rights to read?
         # Also handles fallthrough from previous access tests.
         if entity.datapoint.access in [StuderAccess.READ, StuderAccess.READ_WRITE] and \
-           entity.datapoint.userlevel_r >= StuderUserLevel.VIEWONLY and \
-           entity.datapoint.userlevel_r <= StuderUserLevel.EXPERT:
+           entity.datapoint.userlevel_r >= userlevel_view and \
+           entity.datapoint.userlevel_r <= userlevel_max:
 
             match entity.datapoint.data_type:
                 case StuderDataType.BOOL:

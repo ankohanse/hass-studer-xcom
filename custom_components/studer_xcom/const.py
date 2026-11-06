@@ -121,6 +121,13 @@ MANUFACTURER = "Studer"
 PREFIX_ID = "studer"
 PREFIX_NAME = "Studer"
 
+# Maximum user level per product
+# Product family Next is limited until we gain more confidence in that part of the integration
+PRODUCTS_MAX_USER_LEVEL = {
+    PRODUCTS.XCOM: StuderUserLevel.INSTALLER,
+    PRODUCTS.NEXT: StuderUserLevel.EXPERT,
+}
+
 # Custom extra attributes to entities, displayed in the UI
 ATTR_STUDER_STATE = "studer_state"
 ATTR_STUDER_FLASH_STATE = "studer_flash_state"
