@@ -104,7 +104,7 @@ class StuderEntityHelper:
            entity.datapoint.userlevel_w <= userlevel_max:
             
             match entity.datapoint.data_type:
-                case StuderDataType.SIGNAL:
+                case StuderDataType.SIGNAL | StuderDataType.INT32:
                     return Platform.BUTTON
                 
                 case _:
