@@ -235,7 +235,7 @@ class StuderEntityData():
 class StuderCoordinatorFactory:
     
     @staticmethod
-    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry, name: str=None, force_create: bool=False):
+    async def async_create(hass: HomeAssistant, config_entry: ConfigEntry, force_create: bool=False):
         """
         Get existing Coordinator for a config entry, or create a new one if it does not yet exist
         """
@@ -264,8 +264,8 @@ class StuderCoordinatorFactory:
 
         if not coordinator:
             # Get an instance of our coordinator. This is unique to this config_entry
-            _LOGGER.debug(f"Create coordinator")
-            coordinator = StuderCoordinator(hass, config, options, name=name)
+            _LOGGER.debug(f"Create coordinator for {config_entry.title}")
+            coordinator = StuderCoordinator(hass, config, options, name=config_entry.title)
 
             hass.data[DOMAIN][COORDINATOR][config_entry.entry_id] = coordinator
             

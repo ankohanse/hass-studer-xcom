@@ -1224,10 +1224,10 @@ class StuderFlowHandler(ConfigEntryBaseFlow):
             
             case CONFIG_MODE.RECONFIG:
                 reason = "Reconfigure finished"
-                return self.async_update_reload_and_abort(entry=self.reconfig_entry, title=title, data=data, options=options, reason=reason)
+                return self.async_update_reload_and_abort(entry=self.reconfig_entry, data=data, options=options, reason=reason)
             
             case CONFIG_MODE.CONFIG:
-               self.hass.config_entries.async_update_entry(entry=self.config_entry, title=title, data=data, options = options)
+               self.hass.config_entries.async_update_entry(entry=self.config_entry, data=data, options = options)
                return self.async_create_entry(title=None, data=None)
             
             

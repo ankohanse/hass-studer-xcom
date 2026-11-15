@@ -17,7 +17,7 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 # Base component constants
 DOMAIN = "studer_xcom"
-NAME = "Studer Xcom"
+NAME = "Studer-Innotec"
 ISSUE_URL = "https://github.com/ankohanse/hass-studer-xcom/issues"
 
 PLATFORMS: list[Platform] = [

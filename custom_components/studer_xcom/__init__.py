@@ -66,24 +66,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     lib_logger.setLevel(log_level)
 
     _LOGGER.info(f"Logging at {logging.getLevelName(log_level)}")
-
-    # Get properties from the config_entry
-    product = config_entry.data.get(CONF_PRODUCT, DEFAULT_PRODUCT) 
-    match product:
-        case PRODUCTS.XCOM:
-            port = config_entry.data.get(CONF_XCOM_PORT, None) or config_entry.data.get(CONF_PORT, DEFAULT_XCOM_PORT)
-            title = str.format(XCOM_TITLE_FMT, port=port)
-        case PRODUCTS.NEXT:
-            host = config_entry.data.get(CONF_NEXT_GW_HOST, DEFAULT_NEXT_GW_HOST)
-            title = str.format(NEXT_TITLE_FMT, host=host)
-        case _:
-            _LOGGER.warning(f"Incorrect value for product: {product}")
-    
-    _LOGGER.info(f"Setup config entry for '{title}'")
+    _LOGGER.info(f"Setup config entry for '{config_entry.title}'")
 
     # Get a Coordinator instance for this port and start it
     # We force to create a fresh instance, otherwise data updates don't happen if this setup_entry was triggered by a reload
-    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry, name=title, force_create=True)
+    coordinator: StuderCoordinator = await StuderCoordinatorFactory.async_create(hass, config_entry, force_create=True)
     if not await coordinator.start():
         raise ConfigEntryNotReady(f"Timout while waiting for connection to Studer Gateway.")
     
@@ -107,7 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     # Perform coordinator stop actions when Home Assistant shuts down or config-entry unloads
     @callback
     async def _async_coordinator_stop(*_: Any) -> None:
-        _LOGGER.info(f"Stopping {title}")
+        _LOGGER.info(f"Stopping {config_entry.title}")
         await coordinator.stop()
     
     config_entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_CLOSE, _async_coordinator_stop))
